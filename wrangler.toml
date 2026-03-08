@@ -1,0 +1,6 @@
+name = "handy-premium"
+compatibility_date = "2024-12-01"
+
+# Enable Node.js compatibility for Cloudflare Workers
+# This resolves the "node:buffer" warning during deployment
+compatibility_flags = ["nodejs_compat"]

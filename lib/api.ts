@@ -1,0 +1,598 @@
+import { API_ENDPOINTS } from "./api-config"
+
+// ===========================================
+// API Response Types (based on actual API responses)
+// ===========================================
+
+export interface APICover {
+  url: string
+  width?: number
+  height?: number
+  blurHash?: string
+}
+
+export interface APIActor {
+  name: string
+  character?: string
+  image?: string
+  profilePath?: string
+}
+
+export interface APIStar {
+  staffId: string
+  staffType: number
+  name: string
+  character: string
+  avatarUrl: string
+  detailPath: string
+}
+
+export interface APIVideoAddress {
+  videoId: string
+  definition: string
+  url: string
+  duration: number
+  width: number
+  height: number
+  size: number
+  fps: number
+  bitrate: number
+  type: number
+}
+
+export interface APITrailer {
+  videoAddress: APIVideoAddress
+  cover: APICover
+}
+
+export interface APIResolution {
+  resolution: number
+  epNum: number
+}
+
+export interface APIResourceSeason {
+  se: number
+  maxEp: number
+  allEp: string
+  resolutions: APIResolution[]
+}
+
+export interface APIResource {
+  seasons: APIResourceSeason[]
+  source: string
+  uploadBy: string
+}
+
+// Sources API Types
+export interface APIDownloadSource {
+  id: string
+  url: string
+  resolution: number
+  size: string
+}
+
+export interface APICaption {
+  id: string
+  lan: string
+  lanName: string
+  url: string
+  size: string
+  delay: number
+}
+
+export interface APIProcessedSource {
+  id: string
+  quality: number
+  directUrl: string
+  proxyUrl: string
+  size: string
+  format: string
+}
+
+export interface APISourcesResponse {
+  status: string
+  data: {
+    downloads: APIDownloadSource[]
+    captions: APICaption[]
+    processedSources: APIProcessedSource[]
+    limited: boolean
+    limitedCode: string
+    freeNum: number
+    hasResource: boolean
+  }
+}
+
+// Normalized Sources Type
+export interface NormalizedSources {
+  videos: { quality: string; src: string; downloadUrl?: string; size: string }[]
+  subtitles: { id: string; label: string; language: string; src: string }[]
+  hasResource: boolean
+}
+
+export interface APIEpisode {
+  episodeNumber: number
+  title: string
+  duration: number
+  description?: string
+}
+
+export interface APISeason {
+  seasonNumber: number
+  episodes: APIEpisode[]
+}
+
+export interface APISubject {
+  subjectId: string
+  subjectType: number // 1 = movie, 2 = series
+  title: string
+  description: string
+  releaseDate: string
+  duration: number // in seconds
+  genre: string // comma-separated
+  cover: APICover
+  backdrop?: APICover
+  rating?: number
+  imdbRatingValue?: string // IMDB rating as string
+  cast?: APIActor[]
+  seasons?: APISeason[]
+  trailer?: string | APITrailer // Can be string (URL) or object with videoAddress
+  subtitles?: string // comma-separated list of available subtitles
+  countryName?: string
+  hasResource?: boolean
+}
+
+export interface APITrendingResponse {
+  status: string
+  data: {
+    subjectList: APISubject[]
+  }
+}
+
+export interface APISearchResponse {
+  status: string
+  data: {
+    items: APISubject[]
+    pager: {
+      hasMore: boolean
+      page: string
+      totalCount: number
+    }
+  }
+}
+
+export interface APIInfoResponse {
+  status: string
+  data: {
+    subject: APISubject
+    stars?: APIStar[]
+    resource?: APIResource
+  }
+}
+
+export interface APIHomeListItem {
+  type: string
+  position: number
+  title: string
+  subjects: APISubject[]
+  banner: any
+  opId?: string
+  url?: string
+}
+
+export interface APIHomepageResponse {
+  status: string
+  data: {
+    topPickList: APISubject[]
+    homeList: APIHomeListItem[]
+    operatingList: APIHomeListItem[]
+    platformList: {
+      name: string
+      uploadBy: string
+    }[]
+    banner: APISubject[] | null
+  }
+}
+
+// ===========================================
+// Normalized App Types (used throughout the app)
+// ===========================================
+
+export interface NormalizedContent {
+  id: string
+  type: "movie" | "series"
+  title: string
+  description: string
+  releaseDate: string
+  duration: string
+  genre: string[]
+  poster: string
+  backdrop: string
+  rating: number
+  actors: { name: string; character: string; image: string }[]
+  trailer: string
+  trailerVideo?: string // Direct video URL for trailer
+  subtitles?: string[] // Available subtitle languages
+  country?: string
+  hasResource?: boolean
+  resource?: {
+    seasons: {
+      seasonNumber: number
+      maxEpisodes: number
+      resolutions: number[]
+    }[]
+    source: string
+  }
+  seasons?: {
+    seasonNumber: number
+    episodes: {
+      episodeNumber: number
+      title: string
+      duration: string
+    }[]
+  }[]
+}
+
+// ===========================================
+// Helper Functions
+// ===========================================
+
+function formatDuration(seconds: number): string {
+  if (!seconds || seconds === 0) return "N/A"
+  const hours = Math.floor(seconds / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`
+  }
+  return `${minutes}m`
+}
+
+// Default rating when none is provided
+const DEFAULT_RATING = 8.0
+
+function normalizeSubject(subject: APISubject): NormalizedContent {
+  // Handle trailer - can be string URL or object with videoAddress
+  let trailerUrl = ""
+  let trailerVideoUrl = ""
+  if (subject.trailer) {
+    if (typeof subject.trailer === "string") {
+      trailerUrl = subject.trailer
+    } else if (subject.trailer.videoAddress?.url) {
+      trailerVideoUrl = subject.trailer.videoAddress.url
+      // Create a placeholder YouTube URL for embed fallback
+      trailerUrl = ""
+    }
+  }
+
+  // Parse rating - can be number or string (imdbRatingValue)
+  let rating = DEFAULT_RATING
+  if (subject.rating) {
+    rating = subject.rating
+  } else if (subject.imdbRatingValue) {
+    rating = parseFloat(subject.imdbRatingValue) || DEFAULT_RATING
+  }
+
+  return {
+    id: subject.subjectId,
+    type: subject.subjectType === 2 ? "series" : "movie",
+    title: subject.title || "Untitled",
+    description: subject.description || "No description available.",
+    releaseDate: subject.releaseDate || "",
+    duration: formatDuration(subject.duration),
+    genre: subject.genre ? subject.genre.split(",").map((g) => g.trim()) : [],
+    poster: subject.cover?.url || "/abstract-movie-poster.png",
+    backdrop: subject.backdrop?.url || subject.cover?.url || "/movie-backdrop.png",
+    rating,
+    actors: (subject.cast || []).slice(0, 10).map((actor) => ({
+      name: actor.name || "Unknown",
+      character: actor.character || "",
+      image: actor.image || actor.profilePath || "/actor-portrait.png",
+    })),
+    trailer: trailerUrl,
+    trailerVideo: trailerVideoUrl || undefined,
+    subtitles: subject.subtitles ? subject.subtitles.split(",").map((s) => s.trim()) : undefined,
+    country: subject.countryName,
+    hasResource: subject.hasResource,
+    seasons: subject.seasons?.map((season) => ({
+      seasonNumber: season.seasonNumber,
+      episodes: season.episodes.map((ep) => ({
+        episodeNumber: ep.episodeNumber,
+        title: ep.title || `Episode ${ep.episodeNumber}`,
+        duration: formatDuration(ep.duration),
+      })),
+    })),
+  }
+}
+
+// Normalize subject with additional info data (stars, resource)
+function normalizeSubjectWithInfo(
+  subject: APISubject,
+  stars?: APIStar[],
+  resource?: APIResource
+): NormalizedContent {
+  const base = normalizeSubject(subject)
+
+  // Use stars data for actors if available (more detailed than subject.cast)
+  if (stars && stars.length > 0) {
+    base.actors = stars.slice(0, 10).map((star) => ({
+      name: star.name || "Unknown",
+      character: star.character || "",
+      image: star.avatarUrl || "/actor-portrait.png",
+    }))
+  }
+
+  // Add resource info for playback
+  if (resource && resource.seasons && resource.seasons.length > 0) {
+    base.resource = {
+      seasons: resource.seasons.map((s) => ({
+        seasonNumber: s.se,
+        maxEpisodes: s.maxEp,
+        resolutions: s.resolutions.map((r) => r.resolution),
+      })),
+      source: resource.source,
+    }
+
+    // Populate seasons with episodes from resource data (for series UI display)
+    // Only overwrite if base.seasons is empty or doesn't have episode data
+    // The resource provides season number and max episode count
+    const hasExistingSeasons = base.seasons && base.seasons.length > 0 && 
+      base.seasons.some(s => s.episodes && s.episodes.length > 0)
+    
+    if (!hasExistingSeasons) {
+      base.seasons = resource.seasons.map((s) => ({
+        seasonNumber: s.se,
+        episodes: Array.from({ length: s.maxEp }, (_, i) => ({
+          episodeNumber: i + 1,
+          title: `Episode ${i + 1}`,
+          duration: formatDuration(0), // Duration not available from resource, will be fetched on play
+        })),
+      }))
+    }
+  }
+
+  return base
+}
+
+// ===========================================
+// API Functions
+// ===========================================
+
+export async function fetchTrending(): Promise<NormalizedContent[]> {
+  try {
+    const res = await fetch(API_ENDPOINTS.trending, {
+      next: { revalidate: 3600 },
+      headers: { Accept: "application/json" },
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const json: APITrendingResponse = await res.json()
+
+    if (json.status === "success" && json.data?.subjectList) {
+      return json.data.subjectList.map(normalizeSubject)
+    }
+    return []
+  } catch (error) {
+    console.error("Trending fetch error:", error)
+    return []
+  }
+}
+
+// Search for French dubbed version of content
+async function fetchFrenchVersion(
+  originalTitle: string,
+  subjectType: number
+): Promise<APISubject | null> {
+  try {
+    // Remove any existing version tags
+    const cleanTitle = originalTitle.replace(/\s*\[Version française\]\s*/gi, '').trim()
+    const frenchTitle = `${cleanTitle} [Version française]`
+    
+    // Search for French version - cached for 1 hour to reduce API calls
+    const res = await fetch(API_ENDPOINTS.search(frenchTitle), {
+      next: { revalidate: 3600 },
+      headers: { Accept: "application/json" },
+    })
+    if (!res.ok) return null
+    const json: APISearchResponse = await res.json()
+
+    if (json.status === "success" && json.data?.items && json.data.items.length > 0) {
+      // Find exact match with French version tag
+      const frenchContent = json.data.items.find(item => 
+        item.title.toLowerCase().includes('[version française]') && 
+        item.hasResource === true &&
+        item.subjectType === subjectType
+      )
+      
+      if (frenchContent) {
+        console.log(`[v0] French version found for: ${originalTitle}`)
+        return frenchContent
+      }
+    }
+    
+    console.log(`[v0] No French version available for: ${originalTitle}, using original`)
+    return null
+  } catch (error) {
+    console.error("French version search error:", error)
+    return null
+  }
+}
+
+export async function fetchSearch(query: string): Promise<NormalizedContent[]> {
+  try {
+    const res = await fetch(API_ENDPOINTS.search(query), {
+      next: { revalidate: 86400 },
+      headers: { Accept: "application/json" },
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const json: APISearchResponse = await res.json()
+
+    if (json.status === "success" && json.data?.items) {
+      return json.data.items.map(normalizeSubject)
+    }
+    return []
+  } catch (error) {
+    console.error("Search fetch error:", error)
+    return []
+  }
+}
+
+export async function fetchInfo(id: string, preferFrench: boolean = true): Promise<NormalizedContent | null> {
+  try {
+    const res = await fetch(API_ENDPOINTS.info(id), {
+      next: { revalidate: 3600 },
+      headers: { Accept: "application/json" },
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const json: APIInfoResponse = await res.json()
+
+    if (json.status === "success" && json.data?.subject) {
+      const subject = json.data.subject
+      
+      // Try to get French version if preferred and not already French
+      if (preferFrench && !subject.title.toLowerCase().includes('[version française]')) {
+        const frenchVersion = await fetchFrenchVersion(subject.title, subject.subjectType)
+        
+        if (frenchVersion) {
+          // Fetch the full info for the French version
+          const frenchRes = await fetch(API_ENDPOINTS.info(frenchVersion.subjectId), {
+            next: { revalidate: 3600 },
+            headers: { Accept: "application/json" },
+          })
+          
+          if (frenchRes.ok) {
+            const frenchJson: APIInfoResponse = await frenchRes.json()
+            if (frenchJson.status === "success" && frenchJson.data?.subject) {
+              return normalizeSubjectWithInfo(
+                frenchJson.data.subject, 
+                frenchJson.data.stars, 
+                frenchJson.data.resource
+              )
+            }
+          }
+        }
+      }
+      
+      // Use normalizeSubjectWithInfo to include stars and resource data
+      return normalizeSubjectWithInfo(json.data.subject, json.data.stars, json.data.resource)
+    }
+    return null
+  } catch (error) {
+    console.error("Info fetch error:", error)
+    return null
+  }
+}
+
+export async function fetchHomepage(): Promise<{
+  topPicks: NormalizedContent[]
+  categories: { title: string; items: NormalizedContent[] }[]
+  platforms: string[]
+}> {
+  try {
+    const res = await fetch(API_ENDPOINTS.homepage, {
+      next: { revalidate: 3600 },
+      headers: { Accept: "application/json" },
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const json: APIHomepageResponse = await res.json()
+
+    const apiData = json.data
+
+    console.log("[v0] homeList length:", apiData?.homeList?.length || 0)
+    console.log("[v0] operatingList length:", apiData?.operatingList?.length || 0)
+    console.log("[v0] topPickList length:", apiData?.topPickList?.length || 0)
+
+    if (json.status === "success" && apiData) {
+      const topPicks = (apiData.topPickList || []).map(normalizeSubject)
+
+      // Use operatingList if homeList is empty, as the API now returns categories there
+      const categorySource =
+        apiData.homeList && apiData.homeList.length > 0 ? apiData.homeList : apiData.operatingList || []
+
+      // Filter to only include categories with content (subjects array with items)
+      const categories = categorySource
+        .filter((cat) => cat.subjects && cat.subjects.length > 0)
+        .map((cat) => ({
+          title: cat.title,
+          items: cat.subjects.map(normalizeSubject),
+        }))
+
+      const platforms = (apiData.platformList || []).map((p) => p.name)
+
+      console.log("[v0] Processed categories count:", categories.length)
+      categories.forEach((cat, idx) => {
+        console.log(`[v0] Category ${idx}: "${cat.title}" with ${cat.items.length} items`)
+      })
+
+      return { topPicks, categories, platforms }
+    }
+    return { topPicks: [], categories: [], platforms: [] }
+  } catch (error) {
+    console.error("Homepage fetch error:", error)
+    return { topPicks: [], categories: [], platforms: [] }
+  }
+}
+
+export async function fetchSources(
+  id: string,
+  season?: number,
+  episode?: number
+): Promise<NormalizedSources> {
+  try {
+    const res = await fetch(API_ENDPOINTS.sources(id, season, episode), {
+      headers: { Accept: "application/json" },
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const json: APISourcesResponse = await res.json()
+
+    if (json.status === "success" && json.data) {
+      const videos = (json.data.processedSources || json.data.downloads || [])
+        .sort((a, b) => {
+          const resA = "quality" in a ? a.quality : a.resolution
+          const resB = "quality" in b ? b.quality : b.resolution
+          return resB - resA // Sort by highest resolution first
+        })
+        .map((source) => {
+          const resolution = "quality" in source ? source.quality : source.resolution
+          // Use the proxyUrl from the API which handles proper streaming
+          // The proxyUrl goes through the API server which handles CORS and streaming
+          // We need to ensure it uses HTTPS to avoid mixed content issues
+          let streamUrl = ""
+          if ("proxyUrl" in source && source.proxyUrl) {
+            // Replace http:// with https:// to avoid mixed content issues
+            streamUrl = source.proxyUrl.replace(/^http:\/\//i, "https://")
+          } else if ("directUrl" in source) {
+            // Fallback to directUrl through our local proxy
+            streamUrl = `/api/download?url=${encodeURIComponent(source.directUrl)}`
+          } else {
+            streamUrl = `/api/download?url=${encodeURIComponent(source.url)}`
+          }
+          
+          // For downloads, use the directUrl through our proxy
+          const directVideoUrl = "directUrl" in source ? source.directUrl : source.url
+          const downloadUrl = `/api/download?url=${encodeURIComponent(directVideoUrl)}`
+          
+          return {
+            quality: `${resolution}p`,
+            src: streamUrl,
+            downloadUrl: downloadUrl,
+            size: source.size,
+          }
+        })
+
+      const subtitles = (json.data.captions || []).map((caption) => ({
+        id: caption.id,
+        label: caption.lanName,
+        language: caption.lan,
+        src: caption.url,
+      }))
+
+      return {
+        videos,
+        subtitles,
+        hasResource: json.data.hasResource,
+      }
+    }
+    return { videos: [], subtitles: [], hasResource: false }
+  } catch (error) {
+    console.error("Sources fetch error:", error)
+    return { videos: [], subtitles: [], hasResource: false }
+  }
+}
