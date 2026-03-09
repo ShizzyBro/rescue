@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import Image from "next/image"
 import { X, Monitor, ShieldOff, Download, Sparkles, Smartphone } from "lucide-react"
 
-const SESSION_KEY = "handyflix_welcome_dismissed"
+const STORAGE_KEY = "handyflix_welcome_seen"
 
 interface WelcomeModalProps {
   show: boolean
@@ -19,9 +19,9 @@ export function WelcomeModal({ show }: WelcomeModalProps) {
 
   useEffect(() => {
     if (!show) return
-    // Check if already dismissed today
-    const dismissed = sessionStorage.getItem(SESSION_KEY)
-    if (dismissed) return
+    // Only show once ever — check localStorage
+    const seen = localStorage.getItem(STORAGE_KEY)
+    if (seen) return
     
     // Detect device type
     const ua = navigator.userAgent || navigator.vendor || (window as any).opera
@@ -39,16 +39,12 @@ export function WelcomeModal({ show }: WelcomeModalProps) {
   }, [show])
 
   const handleClose = () => {
+    localStorage.setItem(STORAGE_KEY, "true")
     setClosing(true)
     setTimeout(() => {
       setVisible(false)
       setClosing(false)
     }, 300)
-  }
-
-  const handleDontShowToday = () => {
-    sessionStorage.setItem(SESSION_KEY, "true")
-    handleClose()
   }
 
   if (!visible) return null
@@ -137,14 +133,6 @@ export function WelcomeModal({ show }: WelcomeModalProps) {
                     animation: "shimmer 2s linear infinite",
                   }}
                 />
-              </button>
-
-              {/* Don't show today */}
-              <button
-                onClick={handleDontShowToday}
-                className="w-full mt-3 py-2 text-[13px] text-muted-foreground hover:text-foreground transition-colors"
-              >
-                {"Don't show it today"}
               </button>
             </>
           ) : (
