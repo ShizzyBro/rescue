@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { useRouter, usePathname } from "next/navigation"
-import { Search, Bookmark, Flame, Home, Sparkles, X, Download, Smartphone, Rocket, Menu } from "lucide-react"
+import { Search, Bookmark, Flame, Home, Sparkles, X, Smartphone, Rocket, Menu } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const NAV_ITEMS = [
@@ -291,20 +291,29 @@ export function Navbar() {
                 </kbd>
               </Link>
 
-              {/* Get App CTA — desktop */}
+              {/* Download App CTA — all screen sizes, Android logo */}
               <button
                 onClick={() => setShowAppModal(true)}
-                className="hidden sm:flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold transition-all duration-200 hover:scale-[1.03] active:scale-95"
+                className="flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all duration-200 hover:scale-[1.03] active:scale-95"
                 style={{
                   background: "oklch(0.58 0.22 245 / 0.14)",
                   color: "oklch(0.78 0.15 245)",
                   border: "1px solid oklch(0.58 0.22 245 / 0.25)",
                   boxShadow: "0 0 20px oklch(0.58 0.22 245 / 0.12), inset 0 1px 0 oklch(0.58 0.22 245 / 0.1)",
                 }}
-                aria-label="Get App"
+                aria-label="Download Android App"
               >
-                <Download className="h-3.5 w-3.5 shrink-0" />
-                Get App
+                {/* Android robot SVG icon */}
+                <svg
+                  viewBox="0 0 24 24"
+                  className="h-3.5 w-3.5 shrink-0"
+                  fill="currentColor"
+                  aria-hidden="true"
+                >
+                  <path d="M17.523 15.341a.86.86 0 0 1-.862-.862.86.86 0 0 1 .862-.862.86.86 0 0 1 .862.862.86.86 0 0 1-.862.862m-11.046 0a.86.86 0 0 1-.862-.862.86.86 0 0 1 .862-.862.86.86 0 0 1 .862.862.86.86 0 0 1-.862.862m11.4-6.177l1.716-2.972a.356.356 0 0 0-.131-.486.356.356 0 0 0-.486.131l-1.74 3.015A10.29 10.29 0 0 0 12 8.25c-1.527 0-2.968.344-4.236.952L6.024 6.187a.356.356 0 0 0-.486-.131.356.356 0 0 0-.131.486l1.716 2.972C4.968 10.71 3.5 12.704 3.5 15h17c0-2.296-1.468-4.29-3.623-5.836" />
+                </svg>
+                <span className="hidden xs:inline sm:inline">Download</span>
+                <span className="xs:hidden sm:hidden">App</span>
               </button>
 
               {/* Hamburger — mobile */}
