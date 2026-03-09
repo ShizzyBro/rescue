@@ -218,7 +218,7 @@ export function Navbar() {
                   <span className="text-primary">HANDY</span>
                   <span className="text-foreground">FLIX</span>
                 </span>
-                <span className="text-[9px] tracking-wide font-semibold leading-none hidden sm:block"
+                <span className="text-[9px] tracking-wide font-semibold leading-none"
                   style={{ color: "oklch(0.58 0.22 245 / 0.55)" }}>
                   by Andy Mrlit &amp; Infos Partage
                 </span>
