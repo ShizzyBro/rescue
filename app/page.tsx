@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react"
 import { Navbar } from "@/components/navbar"
 import { SplashScreen } from "@/components/splash-screen"
+import { WelcomeModal } from "@/components/welcome-modal"
 import { HeroSection } from "@/components/hero-section"
 import { GenreRail } from "@/components/genre-rail"
 import { PremiumCarousel } from "@/components/premium-carousel"
@@ -64,6 +65,7 @@ export default function HomePage() {
   const [apiCategories, setApiCategories] = useState<{ title: string; items: NormalizedContent[] }[]>([])
   const [platforms, setPlatforms] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [splashComplete, setSplashComplete] = useState(false)
 
   useEffect(() => {
     async function loadContent() {
@@ -137,9 +139,19 @@ export default function HomePage() {
     setSelectedGenre(genre)
   }, [])
 
+  // Detect when splash screen completes (loading done)
+  useEffect(() => {
+    if (!isLoading) {
+      // Splash screen takes ~3 seconds, add a buffer
+      const timer = setTimeout(() => setSplashComplete(true), 3200)
+      return () => clearTimeout(timer)
+    }
+  }, [isLoading])
+
   return (
     <main className="min-h-screen bg-background">
       <SplashScreen isLoading={isLoading} />
+      {/* <WelcomeModal show={splashComplete} /> */}
       <Navbar />
       <HeroSection content={heroContent} />
 
