@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Image from "next/image"
-import { X, Monitor, ShieldOff, Download, Sparkles } from "lucide-react"
+import { X, Monitor, ShieldOff, Download, Sparkles, Smartphone } from "lucide-react"
 
 const SESSION_KEY = "handyflix_welcome_dismissed"
 
@@ -10,15 +10,29 @@ interface WelcomeModalProps {
   show: boolean
 }
 
+type DeviceType = "android" | "ios" | "other"
+
 export function WelcomeModal({ show }: WelcomeModalProps) {
   const [visible, setVisible] = useState(false)
   const [closing, setClosing] = useState(false)
+  const [deviceType, setDeviceType] = useState<DeviceType>("other")
 
   useEffect(() => {
     if (!show) return
     // Check if already dismissed today
     const dismissed = sessionStorage.getItem(SESSION_KEY)
     if (dismissed) return
+    
+    // Detect device type
+    const ua = navigator.userAgent || navigator.vendor || (window as any).opera
+    if (/android/i.test(ua)) {
+      setDeviceType("android")
+    } else if (/iPad|iPhone|iPod/.test(ua)) {
+      setDeviceType("ios")
+    } else {
+      setDeviceType("other")
+    }
+    
     // Small delay after splash screen ends
     const timer = setTimeout(() => setVisible(true), 400)
     return () => clearTimeout(timer)
@@ -99,37 +113,57 @@ export function WelcomeModal({ show }: WelcomeModalProps) {
             </div>
           </div>
 
-          {/* Download App button — Coming Soon style */}
-          <button
-            className="w-full py-3.5 rounded-2xl text-sm font-bold text-white relative overflow-hidden group"
-            style={{
-              background: "linear-gradient(135deg, oklch(0.5 0.18 245) 0%, oklch(0.45 0.2 260) 100%)",
-              boxShadow: "0 8px 32px oklch(0.5 0.2 250 / 0.4), inset 0 1px 0 oklch(1 0 0 / 0.15)",
-            }}
-            disabled
-          >
-            <span className="relative z-10 flex items-center justify-center gap-2">
-              <Download className="h-4 w-4" />
-              App Coming Soon
-            </span>
-            {/* Shimmer effect */}
-            <div
-              className="absolute inset-0 opacity-30"
-              style={{
-                background: "linear-gradient(90deg, transparent 0%, oklch(1 0 0 / 0.3) 50%, transparent 100%)",
-                backgroundSize: "200% 100%",
-                animation: "shimmer 2s linear infinite",
-              }}
-            />
-          </button>
+          {/* Download App button — only for Android */}
+          {deviceType === "android" ? (
+            <>
+              <button
+                className="w-full py-3.5 rounded-2xl text-sm font-bold text-white relative overflow-hidden group"
+                style={{
+                  background: "linear-gradient(135deg, oklch(0.5 0.18 245) 0%, oklch(0.45 0.2 260) 100%)",
+                  boxShadow: "0 8px 32px oklch(0.5 0.2 250 / 0.4), inset 0 1px 0 oklch(1 0 0 / 0.15)",
+                }}
+                disabled
+              >
+                <span className="relative z-10 flex items-center justify-center gap-2">
+                  <Download className="h-4 w-4" />
+                  App Coming Soon
+                </span>
+                {/* Shimmer effect */}
+                <div
+                  className="absolute inset-0 opacity-30"
+                  style={{
+                    background: "linear-gradient(90deg, transparent 0%, oklch(1 0 0 / 0.3) 50%, transparent 100%)",
+                    backgroundSize: "200% 100%",
+                    animation: "shimmer 2s linear infinite",
+                  }}
+                />
+              </button>
 
-          {/* Don't show today */}
-          <button
-            onClick={handleDontShowToday}
-            className="w-full mt-3 py-2 text-[13px] text-muted-foreground hover:text-foreground transition-colors"
-          >
-            {"Don't show it today"}
-          </button>
+              {/* Don't show today */}
+              <button
+                onClick={handleDontShowToday}
+                className="w-full mt-3 py-2 text-[13px] text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {"Don't show it today"}
+              </button>
+            </>
+          ) : (
+            <div
+              className="w-full py-4 px-4 rounded-2xl text-center"
+              style={{
+                background: "oklch(0.15 0.03 255 / 0.6)",
+                border: "1px solid oklch(0.7 0.05 240 / 0.1)",
+              }}
+            >
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <Smartphone className="h-5 w-5" style={{ color: "oklch(0.58 0.22 245)" }} />
+              </div>
+              <p className="text-sm font-semibold text-foreground">Android Only</p>
+              <p className="text-[12px] text-muted-foreground mt-1">
+                This app is available for Android devices only
+              </p>
+            </div>
+          )}
 
           {/* Feature badges */}
           <div className="flex items-center justify-between mt-4 px-2">
