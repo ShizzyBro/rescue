@@ -72,7 +72,7 @@ export const HeroSection = memo(function HeroSection({ content }: HeroSectionPro
   // Show loading state if no real content available
   if (isLoading) {
     return (
-      <div className="px-4 sm:px-6 lg:px-8 pb-2 pt-20">
+      <div className="px-4 sm:px-6 lg:px-8 pb-2 pt-3">
         <div
           className="relative mx-auto max-w-[1320px] overflow-hidden"
           style={{ borderRadius: "1.5rem" }}
@@ -94,7 +94,7 @@ export const HeroSection = memo(function HeroSection({ content }: HeroSectionPro
   const detailUrl = currentItem.type === "series" ? `/series/${currentItem.id}` : `/movie/${currentItem.id}`
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 pb-2 pt-20">
+    <div className="px-4 sm:px-6 lg:px-8 pb-2 pt-3">
       <div
         ref={containerRef}
         className="relative mx-auto max-w-[1320px] overflow-hidden select-none"
