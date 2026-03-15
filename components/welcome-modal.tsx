@@ -16,6 +16,9 @@ export function WelcomeModal({ show }: WelcomeModalProps) {
   const [visible, setVisible] = useState(false)
   const [closing, setClosing] = useState(false)
   const [deviceType, setDeviceType] = useState<DeviceType>("other")
+  const [downloadCount, setDownloadCount] = useState<number | null>(null)
+  const [version, setVersion] = useState<string>("v2.1")
+  const [publishedAt, setPublishedAt] = useState<string | null>(null)
 
   useEffect(() => {
     if (!show) return
@@ -32,6 +35,16 @@ export function WelcomeModal({ show }: WelcomeModalProps) {
     } else {
       setDeviceType("other")
     }
+    
+    // Fetch download count, version, and publish date
+    fetch("/api/download-stats")
+      .then((res) => res.json())
+      .then((data) => {
+        setDownloadCount(data.downloads)
+        setVersion(data.version || "v2.1")
+        setPublishedAt(data.publishedAt)
+      })
+      .catch(() => setDownloadCount(0))
     
     // Small delay after splash screen ends
     const timer = setTimeout(() => setVisible(true), 400)
@@ -109,10 +122,55 @@ export function WelcomeModal({ show }: WelcomeModalProps) {
             </div>
           </div>
 
+          {/* Version and update date badge */}
+          <div className="flex items-center justify-center gap-2 mb-3 flex-wrap">
+            {/* Version badge */}
+            <div
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold"
+              style={{
+                background: "oklch(0.5 0.18 245 / 0.15)",
+                color: "oklch(0.75 0.15 245)",
+                border: "1px solid oklch(0.5 0.18 245 / 0.25)",
+              }}
+            >
+              <Sparkles className="h-3 w-3" />
+              <span>NEW {version}</span>
+            </div>
+            
+            {/* Published date badge */}
+            {publishedAt && (
+              <div
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium"
+                style={{
+                  background: "oklch(0.2 0.02 255 / 0.5)",
+                  color: "oklch(0.65 0.02 245)",
+                  border: "1px solid oklch(0.4 0.02 245 / 0.2)",
+                }}
+              >
+                <span>Updated {new Date(publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
+              </div>
+            )}
+            
+            {/* Download counter */}
+            {downloadCount !== null && downloadCount > 0 && (
+              <div
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold"
+                style={{
+                  background: "oklch(0.45 0.15 145 / 0.15)",
+                  color: "oklch(0.7 0.15 145)",
+                  border: "1px solid oklch(0.5 0.15 145 / 0.25)",
+                }}
+              >
+                <Download className="h-3 w-3" />
+                <span>{downloadCount.toLocaleString()}+ downloads</span>
+              </div>
+            )}
+          </div>
+
           {/* Download App button — only for Android */}
           {deviceType === "android" ? (
             <a
-              href="https://github.com/mc-shizzy/Apkhandy-/releases/download/V2.0/HandyFlix.apk"
+              href="https://github.com/mc-shizzy/Apkhandy-/releases/download/v2.1/HandyFlix.apk"
               download
               onClick={handleClose}
               className="w-full py-3.5 rounded-2xl text-sm font-bold text-white relative overflow-hidden flex items-center justify-center gap-2 active:scale-95 transition-transform duration-150"
