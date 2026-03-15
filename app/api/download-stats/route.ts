@@ -5,7 +5,7 @@ export const revalidate = 300 // Cache for 5 minutes
 export async function GET() {
   try {
     const res = await fetch(
-      "https://api.github.com/repos/mc-shizzy/Apkhandy-/releases/tags/V2.0",
+      "https://api.github.com/repos/mc-shizzy/Apkhandy-/releases/tags/v2.1",
       {
         headers: {
           Accept: "application/vnd.github+json",
@@ -15,7 +15,7 @@ export async function GET() {
     )
 
     if (!res.ok) {
-      return NextResponse.json({ downloads: 0 }, { status: 200 })
+      return NextResponse.json({ downloads: 0, version: "v2.1", publishedAt: null }, { status: 200 })
     }
 
     const data = await res.json()
@@ -26,8 +26,12 @@ export async function GET() {
       0
     ) ?? 0
 
-    return NextResponse.json({ downloads: totalDownloads })
+    return NextResponse.json({ 
+      downloads: totalDownloads,
+      version: data.tag_name || "v2.1",
+      publishedAt: data.published_at || null,
+    })
   } catch {
-    return NextResponse.json({ downloads: 0 }, { status: 200 })
+    return NextResponse.json({ downloads: 0, version: "v2.1", publishedAt: null }, { status: 200 })
   }
 }
