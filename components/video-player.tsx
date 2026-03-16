@@ -365,11 +365,29 @@ export function VideoPlayer({
       lastTapRef.current = { time: now, x: clientX }
       singleTapTimerRef.current = setTimeout(() => {
         // No second tap arrived — it's a real single tap: toggle controls
-        setShowControls((s) => !s)
+        setShowControls((prev) => {
+          const newState = !prev
+          // If showing controls, reset the auto-hide timer
+          if (newState) {
+            if (hideControlsTimeout.current) {
+              clearTimeout(hideControlsTimeout.current)
+            }
+            hideControlsTimeout.current = setTimeout(() => {
+              if (isPlaying) {
+                setShowControls(false)
+                setShowQualityMenu(false)
+                setShowPlaybackMenu(false)
+                setShowSubtitleMenu(false)
+                setShowSettingsPanel(false)
+              }
+            }, 4000) // 4 seconds on mobile for more time to interact
+          }
+          return newState
+        })
         singleTapTimerRef.current = null
       }, 300)
     }
-  }, [isMobile, handleSkip])
+  }, [isMobile, handleSkip, isPlaying])
 
   // Toggle fullscreen
   const toggleFullscreen = useCallback(() => {
