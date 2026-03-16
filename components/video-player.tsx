@@ -74,6 +74,7 @@ export function VideoPlayer({
   const [doubleTapSide, setDoubleTapSide] = useState<"left" | "right" | null>(null)
   const [showSettingsPanel, setShowSettingsPanel] = useState(false)
   const lastTapRef = useRef<{ time: number; x: number }>({ time: 0, x: 0 })
+  const singleTapTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   // Detect mobile device
   useEffect(() => {
@@ -329,28 +330,47 @@ export function VideoPlayer({
     playerRef.current.seekTo(newTime, "seconds")
   }, [currentTime, duration])
 
-  // Handle double-tap to seek (mobile YouTube-style)
-  const handleDoubleTap = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+  // Handle tap on mobile:
+  // - single tap  → show/hide controls
+  // - double tap  → seek -10s (left) or +10s (right)
+  const handleTap = useCallback((e: React.MouseEvent) => {
+    if (!isMobile) {
+      // Desktop: simple click to play/pause
+      setIsPlaying((p) => !p)
+      return
+    }
+
     const now = Date.now()
-    const clientX = "touches" in e ? e.touches[0]?.clientX || 0 : e.clientX
+    const clientX = e.clientX
     const rect = containerRef.current?.getBoundingClientRect()
     if (!rect) return
 
     const timeDiff = now - lastTapRef.current.time
-    const xDiff = Math.abs(clientX - lastTapRef.current.x)
+    const isDoubleTap = timeDiff < 300
 
-    // Double tap detection (within 300ms and 50px)
-    if (timeDiff < 300 && xDiff < 50) {
+    if (isDoubleTap) {
+      // Cancel the pending single-tap action
+      if (singleTapTimerRef.current) {
+        clearTimeout(singleTapTimerRef.current)
+        singleTapTimerRef.current = null
+      }
+      // Seek left or right
       const isLeftSide = clientX < rect.left + rect.width / 2
-      const seekAmount = isLeftSide ? -10 : 10
-      handleSkip(seekAmount)
+      handleSkip(isLeftSide ? -10 : 10)
       setDoubleTapSide(isLeftSide ? "left" : "right")
-      setTimeout(() => setDoubleTapSide(null), 500)
+      setTimeout(() => setDoubleTapSide(null), 600)
+      // Reset so a 3rd tap doesn't re-trigger double tap
       lastTapRef.current = { time: 0, x: 0 }
     } else {
+      // Record this tap and wait to see if a second tap comes
       lastTapRef.current = { time: now, x: clientX }
+      singleTapTimerRef.current = setTimeout(() => {
+        // No second tap arrived — it's a real single tap: toggle controls
+        setShowControls((s) => !s)
+        singleTapTimerRef.current = null
+      }, 300)
     }
-  }, [handleSkip])
+  }, [isMobile, handleSkip])
 
   // Toggle fullscreen
   const toggleFullscreen = useCallback(() => {
@@ -439,12 +459,11 @@ export function VideoPlayer({
     return () => clearTimeout(timer)
   }, [])
 
-  // Cleanup timeout on unmount
+  // Cleanup timeouts on unmount
   useEffect(() => {
     return () => {
-      if (hideControlsTimeout.current) {
-        clearTimeout(hideControlsTimeout.current)
-      }
+      if (hideControlsTimeout.current) clearTimeout(hideControlsTimeout.current)
+      if (singleTapTimerRef.current) clearTimeout(singleTapTimerRef.current)
     }
   }, [])
 
@@ -509,24 +528,10 @@ export function VideoPlayer({
         )}
       </div>
 
-      {/* Click/tap to play/pause overlay with double-tap seek */}
+      {/* Click/tap overlay — single tap toggles controls (mobile), click plays/pauses (desktop), double tap seeks (mobile) */}
       <div
         className="absolute inset-0 z-10"
-        onClick={(e) => {
-          if (isMobile) {
-            handleDoubleTap(e)
-            // Single tap shows/hides controls on mobile
-            const now = Date.now()
-            setTimeout(() => {
-              if (Date.now() - lastTapRef.current.time >= 300) {
-                setShowControls((s) => !s)
-              }
-            }, 310)
-          } else {
-            setIsPlaying((p) => !p)
-          }
-        }}
-        onTouchStart={isMobile ? handleDoubleTap : undefined}
+        onClick={handleTap}
       />
 
       {/* Double-tap seek indicator */}
