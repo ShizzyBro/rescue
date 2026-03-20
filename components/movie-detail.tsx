@@ -375,6 +375,7 @@ export function MovieDetail({ movie, frenchVersion }: MovieDetailProps) {
             sources={videoSources}
             subtitles={subtitles}
             initialDuration={activeContent.durationSeconds}
+            preferredSubtitleLang={selectedLang === "original" ? "fr" : undefined}
             onClose={() => setShowPlayer(false)}
             autoPlay
           />

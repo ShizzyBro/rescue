@@ -458,6 +458,7 @@ export function SeriesDetail({ series, frenchVersion }: SeriesDetailProps) {
             sources={videoSources}
             subtitles={subtitles}
             initialDuration={currentEpisodeInfo.durationSeconds || activeContent.durationSeconds}
+            preferredSubtitleLang={selectedLang === "original" ? "fr" : undefined}
             onClose={() => { setShowPlayer(false); setCurrentEpisode(null) }}
             autoPlay
             nextEpisode={nextEpisode ? { title: `S${nextEpisode.season}:E${nextEpisode.episode}`, onPlay: () => playEpisode(nextEpisode.season, nextEpisode.episode) } : undefined}

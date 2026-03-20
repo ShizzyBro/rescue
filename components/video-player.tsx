@@ -28,6 +28,7 @@ export interface VideoPlayerProps {
   autoPlay?: boolean
   startTime?: number
   initialDuration?: number
+  preferredSubtitleLang?: string
   onTimeUpdate?: (currentTime: number) => void
   onEnded?: () => void
   nextEpisode?: { title: string; onPlay: () => void }
@@ -42,6 +43,7 @@ export function VideoPlayer({
   autoPlay = true,
   startTime = 0,
   initialDuration = 0,
+  preferredSubtitleLang,
   onTimeUpdate,
   onEnded,
   nextEpisode,
@@ -69,6 +71,7 @@ export function VideoPlayer({
   const [hasError, setHasError] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string>("")
   const [selectedSubtitle, setSelectedSubtitle] = useState<string | null>(null)
+  const subtitleAutoSelected = useRef(false)
   const [isMobile, setIsMobile] = useState(false)
   const [doubleTapSide, setDoubleTapSide] = useState<"left" | "right" | null>(null)
   const [showSettingsPanel, setShowSettingsPanel] = useState(false)
@@ -233,6 +236,20 @@ export function VideoPlayer({
     })
   }, [subtitles, selectedSubtitle])
 
+  useEffect(() => {
+    if (subtitleAutoSelected.current || subtitles.length === 0 || !preferredSubtitleLang) return
+    subtitleAutoSelected.current = true
+    const preferred = subtitles.find(s => s.language.toLowerCase() === preferredSubtitleLang.toLowerCase())
+    if (preferred) {
+      setSelectedSubtitle(preferred.id)
+      return
+    }
+    const english = subtitles.find(s => s.language.toLowerCase() === "en")
+    if (english) {
+      setSelectedSubtitle(english.id)
+    }
+  }, [subtitles, preferredSubtitleLang])
+
   const controlBarHoveredRef = useRef(false)
 
   const resetHideTimer = useCallback(() => {
@@ -246,7 +263,10 @@ export function VideoPlayer({
   }, [])
 
   const revealControls = useCallback(() => {
-    setShowControls(true)
+    setShowControls((prev) => {
+      if (!prev) controlsShownAtRef.current = Date.now()
+      return true
+    })
     resetHideTimer()
   }, [resetHideTimer])
 
@@ -359,6 +379,8 @@ export function VideoPlayer({
     else vid.pause()
   }, [])
 
+  const controlsShownAtRef = useRef(0)
+
   const handleTap = useCallback((e: React.MouseEvent) => {
     if (!isMobile) {
       togglePlayPause()
@@ -385,8 +407,14 @@ export function VideoPlayer({
     } else {
       lastTapRef.current = { time: now, x: clientX }
       singleTapTimerRef.current = setTimeout(() => {
+        const timeSinceShown = Date.now() - controlsShownAtRef.current
         setShowControls((prev) => {
           if (!prev) {
+            controlsShownAtRef.current = Date.now()
+            resetHideTimer()
+            return true
+          }
+          if (timeSinceShown < 2000) {
             resetHideTimer()
             return true
           }
