@@ -89,12 +89,22 @@ export interface APIProcessedSource {
   format: string
 }
 
+export interface APIProcessedSubtitle {
+  id: string
+  languageCode: string
+  languageName: string
+  directUrl: string
+  proxyUrl: string
+  format: string
+}
+
 export interface APISourcesResponse {
   status: string
   data: {
     downloads: APIDownloadSource[]
     captions: APICaption[]
     processedSources: APIProcessedSource[]
+    processedSubtitles?: APIProcessedSubtitle[]
     limited: boolean
     limitedCode: string
     freeNum: number
@@ -598,12 +608,20 @@ export async function fetchSources(
           }
         })
 
-      const subtitles = (json.data.captions || []).map((caption) => ({
-        id: caption.id,
-        label: caption.lanName,
-        language: caption.lan,
-        src: caption.url,
-      }))
+      const processedSubs = json.data.processedSubtitles || []
+      const subtitles = processedSubs.length > 0
+        ? processedSubs.map((sub) => ({
+            id: sub.id,
+            label: sub.languageName,
+            language: sub.languageCode,
+            src: `/api/subtitles?url=${encodeURIComponent(sub.proxyUrl)}`,
+          }))
+        : (json.data.captions || []).map((caption) => ({
+            id: caption.id,
+            label: caption.lanName,
+            language: caption.lan,
+            src: `/api/subtitles?url=${encodeURIComponent(caption.url)}`,
+          }))
 
       return {
         videos,
