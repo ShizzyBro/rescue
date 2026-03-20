@@ -3,7 +3,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import {
   X, ChevronRight, Loader2, Settings, Check, Play, Pause,
   Volume2, VolumeX, Maximize, Minimize, SkipForward, SkipBack,
-  AlertCircle, RefreshCw,
+  AlertCircle, RefreshCw, Captions, Gauge,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -61,24 +61,29 @@ export function VideoPlayer({
   const [showControls, setShowControls] = useState(true)
   const [showNextEpisode, setShowNextEpisode] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
-  const [showQualityMenu, setShowQualityMenu] = useState(false)
   const [selectedQuality, setSelectedQuality] = useState<string>("")
   const [currentUrl, setCurrentUrl] = useState<string>("")
   const [playbackRate, setPlaybackRate] = useState(1)
-  const [showPlaybackMenu, setShowPlaybackMenu] = useState(false)
   const [hasError, setHasError] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string>("")
-  const [showSubtitleMenu, setShowSubtitleMenu] = useState(false)
   const [selectedSubtitle, setSelectedSubtitle] = useState<string | null>(null)
   const [isMobile, setIsMobile] = useState(false)
   const [doubleTapSide, setDoubleTapSide] = useState<"left" | "right" | null>(null)
   const [showSettingsPanel, setShowSettingsPanel] = useState(false)
+  const [settingsTab, setSettingsTab] = useState<"main" | "quality" | "speed" | "subtitles">("main")
   const [isSeeking, setIsSeeking] = useState(false)
+  const [hoverTime, setHoverTime] = useState<number | null>(null)
+  const [hoverX, setHoverX] = useState(0)
+
   const lastTapRef = useRef<{ time: number; x: number }>({ time: 0, x: 0 })
   const singleTapTimerRef = useRef<NodeJS.Timeout | null>(null)
   const seekTimeRef = useRef<number | null>(null)
   const wasPlayingRef = useRef(autoPlay)
   const isInitialLoadRef = useRef(true)
+  const isPlayingRef = useRef(false)
+  const menuOpenRef = useRef(false)
+
+  useEffect(() => { isPlayingRef.current = isPlaying }, [isPlaying])
 
   useEffect(() => {
     const checkMobile = () => {
@@ -106,7 +111,6 @@ export function VideoPlayer({
   useEffect(() => {
     const vid = videoRef.current
     if (!vid || !currentUrl) return
-
     vid.src = currentUrl
     vid.load()
   }, [currentUrl])
@@ -120,17 +124,13 @@ export function VideoPlayer({
       setIsReady(true)
       setHasError(false)
       setErrorMessage("")
-
       const targetTime = seekTimeRef.current !== null ? seekTimeRef.current : startTime
       if (targetTime > 0) {
         vid.currentTime = targetTime
         seekTimeRef.current = null
       }
-
       const shouldPlay = isInitialLoadRef.current ? autoPlay : wasPlayingRef.current
-      if (shouldPlay) {
-        vid.play().catch(() => {})
-      }
+      if (shouldPlay) vid.play().catch(() => {})
       isInitialLoadRef.current = false
     }
 
@@ -151,10 +151,7 @@ export function VideoPlayer({
     const onPause = () => setIsPlaying(false)
     const onWaiting = () => setIsBuffering(true)
     const onCanPlay = () => setIsBuffering(false)
-
-    const onEnded_ = () => {
-      onEnded?.()
-    }
+    const onEnded_ = () => onEnded?.()
 
     const onError = () => {
       setHasError(true)
@@ -179,7 +176,6 @@ export function VideoPlayer({
     vid.addEventListener("canplay", onCanPlay)
     vid.addEventListener("ended", onEnded_)
     vid.addEventListener("error", onError)
-
     return () => {
       vid.removeEventListener("loadedmetadata", onLoadedMetadata)
       vid.removeEventListener("timeupdate", onTimeUpdate)
@@ -194,9 +190,7 @@ export function VideoPlayer({
   }, [autoPlay, startTime, onEnded])
 
   useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.playbackRate = playbackRate
-    }
+    if (videoRef.current) videoRef.current.playbackRate = playbackRate
   }, [playbackRate])
 
   useEffect(() => {
@@ -209,69 +203,62 @@ export function VideoPlayer({
   useEffect(() => {
     if (duration > 0 && currentTime > 0) {
       onTimeUpdate?.(currentTime)
-      const progress = currentTime / duration
-      if (nextEpisode && progress > 0.9) {
-        setShowNextEpisode(true)
-      } else {
-        setShowNextEpisode(false)
-      }
+      if (nextEpisode && currentTime / duration > 0.9) setShowNextEpisode(true)
+      else setShowNextEpisode(false)
     }
   }, [currentTime, duration, nextEpisode, onTimeUpdate])
 
   useEffect(() => {
     const vid = videoRef.current
     if (!vid) return
-
     const existingTracks = vid.querySelectorAll("track")
     existingTracks.forEach((t) => t.remove())
-
     subtitles.forEach((sub) => {
       const track = document.createElement("track")
       track.kind = "subtitles"
       track.src = sub.src
       track.srclang = sub.language
       track.label = sub.label
-      if (selectedSubtitle === sub.id) {
-        track.default = true
-      }
+      if (selectedSubtitle === sub.id) track.default = true
       vid.appendChild(track)
     })
-
     for (let i = 0; i < vid.textTracks.length; i++) {
       vid.textTracks[i].mode = subtitles[i] && selectedSubtitle === subtitles[i].id ? "showing" : "hidden"
     }
   }, [subtitles, selectedSubtitle])
 
-  const handleMouseMove = useCallback(() => {
-    setShowControls(true)
-    if (hideControlsTimeout.current) {
-      clearTimeout(hideControlsTimeout.current)
-    }
+  const resetHideTimer = useCallback(() => {
+    if (hideControlsTimeout.current) clearTimeout(hideControlsTimeout.current)
     hideControlsTimeout.current = setTimeout(() => {
-      if (isPlaying) {
+      if (isPlayingRef.current && !menuOpenRef.current) {
         setShowControls(false)
-        setShowQualityMenu(false)
-        setShowPlaybackMenu(false)
-        setShowSubtitleMenu(false)
+        setShowSettingsPanel(false)
       }
-    }, 3000)
-  }, [isPlaying])
+    }, 3500)
+  }, [])
 
-  const handleQualityChange = useCallback(
-    (quality: string) => {
-      const source = sources.find((s) => s.quality === quality)
-      if (!source) return
-      seekTimeRef.current = videoRef.current?.currentTime ?? 0
-      wasPlayingRef.current = !videoRef.current?.paused
-      isInitialLoadRef.current = false
-      setSelectedQuality(quality)
-      setCurrentUrl(source.src)
-      setShowQualityMenu(false)
-      setHasError(false)
-      setErrorMessage("")
-    },
-    [sources],
-  )
+  const revealControls = useCallback(() => {
+    setShowControls(true)
+    resetHideTimer()
+  }, [resetHideTimer])
+
+  const handleMouseMove = useCallback(() => {
+    revealControls()
+  }, [revealControls])
+
+  const handleQualityChange = useCallback((quality: string) => {
+    const source = sources.find((s) => s.quality === quality)
+    if (!source) return
+    seekTimeRef.current = videoRef.current?.currentTime ?? 0
+    wasPlayingRef.current = !videoRef.current?.paused
+    isInitialLoadRef.current = false
+    setSelectedQuality(quality)
+    setCurrentUrl(source.src)
+    setHasError(false)
+    setErrorMessage("")
+    setShowSettingsPanel(false)
+    menuOpenRef.current = false
+  }, [sources])
 
   const handleRetry = useCallback(() => {
     setHasError(false)
@@ -296,91 +283,78 @@ export function VideoPlayer({
     if (!progressRef.current) return null
     const rect = progressRef.current.getBoundingClientRect()
     if (rect.width === 0) return null
-    const x = clientX - rect.left
-    return Math.max(0, Math.min(1, x / rect.width))
+    return Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
   }, [])
 
   const seekToFraction = useCallback((fraction: number) => {
-    if (videoRef.current && duration > 0) {
-      videoRef.current.currentTime = fraction * duration
-    }
+    if (videoRef.current && duration > 0) videoRef.current.currentTime = fraction * duration
   }, [duration])
 
-  const handleSeekMouseDown = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
-      e.stopPropagation()
-      e.preventDefault()
-      setIsSeeking(true)
-      const percentage = calculateSeekPosition(e.clientX)
-      if (percentage !== null) seekToFraction(percentage)
-    },
-    [calculateSeekPosition, seekToFraction],
-  )
+  const handleSeekMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    e.stopPropagation()
+    e.preventDefault()
+    setIsSeeking(true)
+    const p = calculateSeekPosition(e.clientX)
+    if (p !== null) seekToFraction(p)
+  }, [calculateSeekPosition, seekToFraction])
+
+  const handleProgressHover = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const p = calculateSeekPosition(e.clientX)
+    if (p !== null && duration > 0) {
+      setHoverTime(p * duration)
+      setHoverX(e.clientX - (progressRef.current?.getBoundingClientRect().left ?? 0))
+    }
+  }, [calculateSeekPosition, duration])
 
   useEffect(() => {
     if (!isSeeking) return
-    const handleMouseMove = (e: MouseEvent) => {
-      const percentage = calculateSeekPosition(e.clientX)
-      if (percentage !== null) seekToFraction(percentage)
+    const onMove = (e: MouseEvent) => {
+      const p = calculateSeekPosition(e.clientX)
+      if (p !== null) seekToFraction(p)
     }
-    const handleMouseUp = () => setIsSeeking(false)
-    window.addEventListener("mousemove", handleMouseMove)
-    window.addEventListener("mouseup", handleMouseUp)
-    return () => {
-      window.removeEventListener("mousemove", handleMouseMove)
-      window.removeEventListener("mouseup", handleMouseUp)
-    }
+    const onUp = () => setIsSeeking(false)
+    window.addEventListener("mousemove", onMove)
+    window.addEventListener("mouseup", onUp)
+    return () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp) }
   }, [isSeeking, calculateSeekPosition, seekToFraction])
 
-  const handleTouchStart = useCallback(
-    (e: React.TouchEvent<HTMLDivElement>) => {
-      e.stopPropagation()
-      setIsSeeking(true)
-      const touch = e.touches[0]
-      const percentage = calculateSeekPosition(touch.clientX)
-      if (percentage !== null) seekToFraction(percentage)
-    },
-    [calculateSeekPosition, seekToFraction],
-  )
+  const handleTouchStart = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+    e.stopPropagation()
+    setIsSeeking(true)
+    const p = calculateSeekPosition(e.touches[0].clientX)
+    if (p !== null) seekToFraction(p)
+  }, [calculateSeekPosition, seekToFraction])
 
   useEffect(() => {
     if (!isSeeking) return
-    const handleTouchMoveGlobal = (e: TouchEvent) => {
-      const touch = e.touches[0]
-      if (!touch) return
-      const percentage = calculateSeekPosition(touch.clientX)
-      if (percentage !== null) seekToFraction(percentage)
+    const onMove = (e: TouchEvent) => {
+      if (!e.touches[0]) return
+      const p = calculateSeekPosition(e.touches[0].clientX)
+      if (p !== null) seekToFraction(p)
     }
-    const handleTouchEndGlobal = () => setIsSeeking(false)
-    window.addEventListener("touchmove", handleTouchMoveGlobal)
-    window.addEventListener("touchend", handleTouchEndGlobal)
-    window.addEventListener("touchcancel", handleTouchEndGlobal)
-    return () => {
-      window.removeEventListener("touchmove", handleTouchMoveGlobal)
-      window.removeEventListener("touchend", handleTouchEndGlobal)
-      window.removeEventListener("touchcancel", handleTouchEndGlobal)
-    }
+    const onEnd = () => setIsSeeking(false)
+    window.addEventListener("touchmove", onMove)
+    window.addEventListener("touchend", onEnd)
+    window.addEventListener("touchcancel", onEnd)
+    return () => { window.removeEventListener("touchmove", onMove); window.removeEventListener("touchend", onEnd); window.removeEventListener("touchcancel", onEnd) }
   }, [isSeeking, calculateSeekPosition, seekToFraction])
 
   const handleSkip = useCallback((seconds: number) => {
     if (!videoRef.current) return
-    const newTime = Math.max(0, Math.min(duration, (videoRef.current.currentTime || 0) + seconds))
-    videoRef.current.currentTime = newTime
+    videoRef.current.currentTime = Math.max(0, Math.min(duration, (videoRef.current.currentTime || 0) + seconds))
   }, [duration])
 
   const togglePlayPause = useCallback(() => {
     const vid = videoRef.current
     if (!vid) return
-    if (vid.paused) {
-      vid.play().catch(() => {})
-    } else {
-      vid.pause()
-    }
+    if (vid.paused) vid.play().catch(() => {})
+    else vid.pause()
   }, [])
 
   const handleTap = useCallback((e: React.MouseEvent) => {
     if (!isMobile) {
       togglePlayPause()
+      revealControls()
       return
     }
 
@@ -388,51 +362,37 @@ export function VideoPlayer({
     const clientX = e.clientX
     const rect = containerRef.current?.getBoundingClientRect()
     if (!rect) return
-
     const timeDiff = now - lastTapRef.current.time
-    const isDoubleTap = timeDiff < 300
 
-    if (isDoubleTap) {
+    if (timeDiff < 300) {
       if (singleTapTimerRef.current) {
         clearTimeout(singleTapTimerRef.current)
         singleTapTimerRef.current = null
       }
-      const isLeftSide = clientX < rect.left + rect.width / 2
-      handleSkip(isLeftSide ? -10 : 10)
-      setDoubleTapSide(isLeftSide ? "left" : "right")
+      const isLeft = clientX < rect.left + rect.width / 2
+      handleSkip(isLeft ? -10 : 10)
+      setDoubleTapSide(isLeft ? "left" : "right")
       setTimeout(() => setDoubleTapSide(null), 600)
       lastTapRef.current = { time: 0, x: 0 }
     } else {
       lastTapRef.current = { time: now, x: clientX }
       singleTapTimerRef.current = setTimeout(() => {
         setShowControls((prev) => {
-          const newState = !prev
-          if (newState) {
-            if (hideControlsTimeout.current) clearTimeout(hideControlsTimeout.current)
-            hideControlsTimeout.current = setTimeout(() => {
-              if (isPlaying) {
-                setShowControls(false)
-                setShowQualityMenu(false)
-                setShowPlaybackMenu(false)
-                setShowSubtitleMenu(false)
-                setShowSettingsPanel(false)
-              }
-            }, 4000)
+          if (!prev) {
+            resetHideTimer()
+            return true
           }
-          return newState
+          return false
         })
         singleTapTimerRef.current = null
-      }, 300)
+      }, 250)
     }
-  }, [isMobile, handleSkip, isPlaying, togglePlayPause])
+  }, [isMobile, handleSkip, togglePlayPause, revealControls, resetHideTimer])
 
   const toggleFullscreen = useCallback(() => {
     if (!containerRef.current) return
-    if (!document.fullscreenElement) {
-      containerRef.current.requestFullscreen().catch(() => {})
-    } else {
-      document.exitFullscreen()
-    }
+    if (!document.fullscreenElement) containerRef.current.requestFullscreen().catch(() => {})
+    else document.exitFullscreen()
   }, [])
 
   const formatTime = useCallback((seconds: number) => {
@@ -440,76 +400,36 @@ export function VideoPlayer({
     const hrs = Math.floor(seconds / 3600)
     const mins = Math.floor((seconds % 3600) / 60)
     const secs = Math.floor(seconds % 60)
-    if (hrs > 0) {
-      return `${hrs}:${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`
-    }
+    if (hrs > 0) return `${hrs}:${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`
     return `${mins}:${secs.toString().padStart(2, "0")}`
   }, [])
 
   useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement)
-    }
-    document.addEventListener("fullscreenchange", handleFullscreenChange)
-    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange)
+    const h = () => setIsFullscreen(!!document.fullscreenElement)
+    document.addEventListener("fullscreenchange", h)
+    return () => document.removeEventListener("fullscreenchange", h)
   }, [])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       switch (e.key) {
-        case " ":
-        case "k":
-          e.preventDefault()
-          togglePlayPause()
-          break
-        case "ArrowLeft":
-          e.preventDefault()
-          handleSkip(-10)
-          break
-        case "ArrowRight":
-          e.preventDefault()
-          handleSkip(10)
-          break
-        case "ArrowUp":
-          e.preventDefault()
-          setVolume((v) => {
-            const newVol = Math.min(1, v + 0.1)
-            if (videoRef.current) videoRef.current.volume = newVol
-            return newVol
-          })
-          break
-        case "ArrowDown":
-          e.preventDefault()
-          setVolume((v) => {
-            const newVol = Math.max(0, v - 0.1)
-            if (videoRef.current) videoRef.current.volume = newVol
-            return newVol
-          })
-          break
-        case "m":
-          setIsMuted((m) => {
-            const newMuted = !m
-            if (videoRef.current) videoRef.current.muted = newMuted
-            return newMuted
-          })
-          break
-        case "f":
-          toggleFullscreen()
-          break
-        case "Escape":
-          if (onClose && !isFullscreen) onClose()
-          break
+        case " ": case "k": e.preventDefault(); togglePlayPause(); revealControls(); break
+        case "ArrowLeft": e.preventDefault(); handleSkip(-10); revealControls(); break
+        case "ArrowRight": e.preventDefault(); handleSkip(10); revealControls(); break
+        case "ArrowUp": e.preventDefault(); setVolume((v) => { const n = Math.min(1, v + 0.1); if (videoRef.current) videoRef.current.volume = n; return n }); break
+        case "ArrowDown": e.preventDefault(); setVolume((v) => { const n = Math.max(0, v - 0.1); if (videoRef.current) videoRef.current.volume = n; return n }); break
+        case "m": setIsMuted((m) => { const n = !m; if (videoRef.current) videoRef.current.muted = n; return n }); break
+        case "f": toggleFullscreen(); break
+        case "Escape": if (showSettingsPanel) { setShowSettingsPanel(false); menuOpenRef.current = false } else if (onClose && !isFullscreen) onClose(); break
       }
     }
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [handleSkip, toggleFullscreen, onClose, isFullscreen, togglePlayPause])
+  }, [handleSkip, toggleFullscreen, onClose, isFullscreen, togglePlayPause, revealControls, showSettingsPanel])
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (containerRef.current && !document.fullscreenElement) {
-        containerRef.current.requestFullscreen().catch(() => {})
-      }
+      if (containerRef.current && !document.fullscreenElement) containerRef.current.requestFullscreen().catch(() => {})
     }, 500)
     return () => clearTimeout(timer)
   }, [])
@@ -520,6 +440,20 @@ export function VideoPlayer({
       if (singleTapTimerRef.current) clearTimeout(singleTapTimerRef.current)
     }
   }, [])
+
+  const openSettings = useCallback((tab: "main" | "quality" | "speed" | "subtitles" = "main") => {
+    setSettingsTab(tab)
+    setShowSettingsPanel(true)
+    menuOpenRef.current = true
+    if (hideControlsTimeout.current) clearTimeout(hideControlsTimeout.current)
+  }, [])
+
+  const closeSettings = useCallback(() => {
+    setShowSettingsPanel(false)
+    setSettingsTab("main")
+    menuOpenRef.current = false
+    resetHideTimer()
+  }, [resetHideTimer])
 
   const playbackRates = [0.5, 0.75, 1, 1.25, 1.5, 2]
 
@@ -532,10 +466,11 @@ export function VideoPlayer({
       )}
       onMouseMove={handleMouseMove}
       onMouseLeave={() => {
-        setShowControls(false)
-        setShowQualityMenu(false)
-        setShowPlaybackMenu(false)
-        setShowSubtitleMenu(false)
+        if (!menuOpenRef.current) {
+          hideControlsTimeout.current = setTimeout(() => {
+            if (isPlayingRef.current && !menuOpenRef.current) setShowControls(false)
+          }, 800)
+        }
       }}
     >
       <div className="absolute inset-0">
@@ -548,476 +483,420 @@ export function VideoPlayer({
         />
       </div>
 
-      <div
-        className="absolute inset-0 z-10"
-        onClick={handleTap}
-      />
+      <div className="absolute inset-0 z-10" onClick={handleTap} />
 
       {doubleTapSide && (
-        <div
-          className={cn(
-            "absolute top-1/2 -translate-y-1/2 z-30 flex items-center justify-center pointer-events-none",
-            doubleTapSide === "left" ? "left-[15%]" : "right-[15%]"
-          )}
-        >
-          <div className="flex flex-col items-center gap-1 animate-pulse">
-            <div className="flex items-center gap-0.5">
-              {doubleTapSide === "left" ? (
-                <>
-                  <SkipBack className="h-8 w-8 text-white" />
-                  <SkipBack className="h-8 w-8 text-white/50" />
-                </>
-              ) : (
-                <>
-                  <SkipForward className="h-8 w-8 text-white/50" />
-                  <SkipForward className="h-8 w-8 text-white" />
-                </>
-              )}
+        <div className={cn(
+          "absolute top-1/2 -translate-y-1/2 z-30 pointer-events-none",
+          doubleTapSide === "left" ? "left-[10%]" : "right-[10%]"
+        )}>
+          <div className="flex flex-col items-center gap-1.5">
+            <div className="w-20 h-20 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center animate-ping-once">
+              {doubleTapSide === "left"
+                ? <SkipBack className="h-8 w-8 text-white" />
+                : <SkipForward className="h-8 w-8 text-white" />
+              }
             </div>
-            <span className="text-white text-sm font-bold">10s</span>
+            <span className="text-white/90 text-xs font-bold tracking-wide">10s</span>
           </div>
         </div>
       )}
 
       <div
         className={cn(
-          "absolute top-0 left-0 right-0 z-[100] flex items-center justify-between bg-gradient-to-b from-black/80 via-black/40 to-transparent pt-3 sm:pt-4 pb-12 sm:pb-16 px-3 sm:px-4 transition-opacity duration-300",
-          showControls ? "opacity-100" : "opacity-0 pointer-events-none",
+          "absolute top-0 left-0 right-0 z-[100] transition-all duration-300",
+          showControls ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2 pointer-events-none",
         )}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
-          {onClose && (
-            <button onClick={onClose} className="p-2 sm:p-2.5 rounded-full hover:bg-white/10 transition-colors flex-shrink-0">
-              <X className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
-            </button>
-          )}
-          <h2 className="text-sm sm:text-lg font-medium text-white truncate">{title}</h2>
-        </div>
-
-        <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
-          {isMobile && (
-            <button
-              onClick={() => setShowSettingsPanel(true)}
-              className="p-2.5 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
-            >
-              <Settings className="h-5 w-5 text-white" />
-            </button>
-          )}
-
-          {!isMobile && (
-            <>
-              {subtitles.length > 0 && (
-                <div className="relative">
-                  <button
-                    onClick={() => {
-                      setShowSubtitleMenu(!showSubtitleMenu)
-                      setShowQualityMenu(false)
-                      setShowPlaybackMenu(false)
-                    }}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-white/10 hover:bg-white/20 transition-colors"
-                  >
-                    <span className="text-sm text-white font-medium">CC</span>
-                  </button>
-
-                  {showSubtitleMenu && (
-                    <div className="absolute top-full right-0 mt-2 w-48 bg-neutral-900/95 backdrop-blur-xl rounded-lg border border-white/10 shadow-2xl overflow-hidden z-[150]">
-                      <div className="py-1 max-h-60 overflow-y-auto">
-                        <div className="px-4 py-2 text-xs text-white/50 font-medium uppercase tracking-wider border-b border-white/10">
-                          Subtitles
-                        </div>
-                        <button
-                          onClick={() => {
-                            setSelectedSubtitle(null)
-                            setShowSubtitleMenu(false)
-                          }}
-                          className="w-full px-4 py-2.5 flex items-center justify-between hover:bg-white/10 transition-colors"
-                        >
-                          <span className="text-sm text-white">Off</span>
-                          {selectedSubtitle === null && <Check className="h-4 w-4 text-primary" />}
-                        </button>
-                        {subtitles.map((sub) => (
-                          <button
-                            key={sub.id}
-                            onClick={() => {
-                              setSelectedSubtitle(sub.id)
-                              setShowSubtitleMenu(false)
-                            }}
-                            className="w-full px-4 py-2.5 flex items-center justify-between hover:bg-white/10 transition-colors"
-                          >
-                            <span className="text-sm text-white">{sub.label}</span>
-                            {selectedSubtitle === sub.id && <Check className="h-4 w-4 text-primary" />}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <div className="relative">
-                <button
-                  onClick={() => {
-                    setShowPlaybackMenu(!showPlaybackMenu)
-                    setShowQualityMenu(false)
-                    setShowSubtitleMenu(false)
-                  }}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-white/10 hover:bg-white/20 transition-colors"
-                >
-                  <span className="text-sm text-white font-medium">{playbackRate}x</span>
-                </button>
-
-                {showPlaybackMenu && (
-                  <div className="absolute top-full right-0 mt-2 w-32 bg-neutral-900/95 backdrop-blur-xl rounded-lg border border-white/10 shadow-2xl overflow-hidden z-[150]">
-                    <div className="py-1">
-                      <div className="px-4 py-2 text-xs text-white/50 font-medium uppercase tracking-wider border-b border-white/10">
-                        Speed
-                      </div>
-                      {playbackRates.map((rate) => (
-                        <button
-                          key={rate}
-                          onClick={() => {
-                            setPlaybackRate(rate)
-                            setShowPlaybackMenu(false)
-                          }}
-                          className="w-full px-4 py-2.5 flex items-center justify-between hover:bg-white/10 transition-colors"
-                        >
-                          <span className="text-sm text-white">{rate}x</span>
-                          {playbackRate === rate && <Check className="h-4 w-4 text-primary" />}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {sources.length > 1 && (
-                <div className="relative">
-                  <button
-                    onClick={() => {
-                      setShowQualityMenu(!showQualityMenu)
-                      setShowPlaybackMenu(false)
-                      setShowSubtitleMenu(false)
-                    }}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-white/10 hover:bg-white/20 transition-colors"
-                  >
-                    <Settings className="h-4 w-4 text-white" />
-                    <span className="text-sm text-white font-medium">{selectedQuality}</span>
-                  </button>
-
-                  {showQualityMenu && (
-                    <div className="absolute top-full right-0 mt-2 w-40 bg-neutral-900/95 backdrop-blur-xl rounded-lg border border-white/10 shadow-2xl overflow-hidden z-[150]">
-                      <div className="py-1">
-                        <div className="px-4 py-2 text-xs text-white/50 font-medium uppercase tracking-wider border-b border-white/10">
-                          Quality
-                        </div>
-                        {sources.map((source) => (
-                          <button
-                            key={source.quality}
-                            onClick={() => handleQualityChange(source.quality)}
-                            className="w-full px-4 py-2.5 flex items-center justify-between hover:bg-white/10 transition-colors"
-                          >
-                            <span className="text-sm text-white">{source.quality}</span>
-                            {selectedQuality === source.quality && <Check className="h-4 w-4 text-primary" />}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </>
-          )}
+        <div className="bg-gradient-to-b from-black/70 via-black/30 to-transparent px-4 sm:px-6 pt-3 sm:pt-4 pb-14">
+          <div className="flex items-center gap-3">
+            {onClose && (
+              <button
+                onClick={onClose}
+                className="w-9 h-9 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center hover:bg-white/20 transition-all duration-200 active:scale-90"
+              >
+                <X className="h-4.5 w-4.5 text-white" />
+              </button>
+            )}
+            <div className="flex-1 min-w-0">
+              <h2 className="text-sm sm:text-base font-semibold text-white truncate drop-shadow-lg">{title}</h2>
+            </div>
+          </div>
         </div>
       </div>
 
-      {isMobile && showSettingsPanel && (
-        <div
-          className="fixed inset-0 z-[200] flex items-end justify-center"
-          onClick={() => setShowSettingsPanel(false)}
-        >
-          <div className="absolute inset-0 bg-black/60" />
+      <div
+        className={cn(
+          "absolute bottom-0 left-0 right-0 z-[100] transition-all duration-300",
+          showControls ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2 pointer-events-none",
+        )}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="bg-gradient-to-t from-black/80 via-black/40 to-transparent px-4 sm:px-6 pb-4 sm:pb-5 pt-16">
           <div
-            className="relative w-full max-h-[70vh] overflow-y-auto rounded-t-3xl p-4 pb-8 animate-in slide-in-from-bottom duration-300"
+            ref={progressRef}
+            className={cn("relative cursor-pointer group mb-3", isMobile ? "py-3" : "py-2")}
+            onMouseDown={handleSeekMouseDown}
+            onMouseMove={handleProgressHover}
+            onMouseLeave={() => setHoverTime(null)}
+            onTouchStart={handleTouchStart}
+          >
+            {!isMobile && hoverTime !== null && (
+              <div
+                className="absolute -top-9 px-2 py-1 bg-black/90 backdrop-blur-sm rounded-md text-xs font-mono text-white pointer-events-none z-10 border border-white/10"
+                style={{ left: `${hoverX}px`, transform: "translateX(-50%)" }}
+              >
+                {formatTime(hoverTime)}
+              </div>
+            )}
+            <div className={cn(
+              "relative rounded-full transition-all duration-150",
+              isSeeking ? "h-2" : isMobile ? "h-1.5" : "h-1 group-hover:h-2"
+            )} style={{ background: "rgba(255,255,255,0.15)" }}>
+              <div
+                className="absolute top-0 left-0 h-full rounded-full"
+                style={{ width: `${loaded * 100}%`, background: "rgba(255,255,255,0.25)" }}
+              />
+              <div
+                className="absolute top-0 left-0 h-full rounded-full transition-colors"
+                style={{ width: `${played * 100}%`, background: "oklch(0.65 0.22 250)" }}
+              />
+              <div
+                className={cn(
+                  "absolute top-1/2 -translate-y-1/2 rounded-full shadow-lg transition-all duration-150",
+                  isMobile ? "w-4 h-4" : "w-0 h-0 group-hover:w-3.5 group-hover:h-3.5",
+                  isSeeking && "!w-4 !h-4"
+                )}
+                style={{
+                  left: `calc(${played * 100}% - ${isMobile ? 8 : 7}px)`,
+                  background: "oklch(0.65 0.22 250)",
+                  boxShadow: "0 0 8px oklch(0.65 0.22 250 / 0.5)"
+                }}
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1 sm:gap-2">
+              <button
+                onClick={togglePlayPause}
+                className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/10 active:scale-90 transition-all duration-150"
+              >
+                {isPlaying
+                  ? <Pause className="h-5 w-5 text-white fill-white" />
+                  : <Play className="h-5 w-5 text-white fill-white ml-0.5" />
+                }
+              </button>
+
+              {!isMobile && (
+                <>
+                  <button onClick={() => handleSkip(-10)} className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-white/10 active:scale-90 transition-all">
+                    <SkipBack className="h-4 w-4 text-white/80" />
+                  </button>
+                  <button onClick={() => handleSkip(10)} className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-white/10 active:scale-90 transition-all">
+                    <SkipForward className="h-4 w-4 text-white/80" />
+                  </button>
+                </>
+              )}
+
+              {!isMobile && (
+                <div className="flex items-center gap-1.5 ml-1 group/vol">
+                  <button
+                    onClick={() => { const n = !isMuted; setIsMuted(n); if (videoRef.current) videoRef.current.muted = n }}
+                    className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-white/10 transition-all"
+                  >
+                    {isMuted || volume === 0
+                      ? <VolumeX className="h-4 w-4 text-white/80" />
+                      : <Volume2 className="h-4 w-4 text-white/80" />
+                    }
+                  </button>
+                  <div className="w-0 overflow-hidden group-hover/vol:w-20 transition-all duration-200">
+                    <input
+                      type="range" min={0} max={1} step={0.05}
+                      value={isMuted ? 0 : volume}
+                      onChange={(e) => {
+                        const v = parseFloat(e.target.value)
+                        setVolume(v); setIsMuted(false)
+                        if (videoRef.current) { videoRef.current.volume = v; videoRef.current.muted = false }
+                      }}
+                      className="w-20 h-1 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-track]:bg-white/20 [&::-webkit-slider-track]:rounded-full"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <span className="text-white/70 text-xs font-medium ml-1 tabular-nums select-none">
+                {formatTime(currentTime)}
+                <span className="text-white/30 mx-1">/</span>
+                {formatTime(duration)}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1 sm:gap-1.5">
+              {!isMobile && subtitles.length > 0 && (
+                <button
+                  onClick={() => openSettings("subtitles")}
+                  className={cn(
+                    "w-9 h-9 rounded-full flex items-center justify-center hover:bg-white/10 transition-all",
+                    selectedSubtitle && "text-primary"
+                  )}
+                >
+                  <Captions className={cn("h-4 w-4", selectedSubtitle ? "text-primary" : "text-white/80")} />
+                </button>
+              )}
+
+              {!isMobile && (
+                <button
+                  onClick={() => openSettings("main")}
+                  className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-white/10 transition-all"
+                >
+                  <Settings className="h-4 w-4 text-white/80" />
+                </button>
+              )}
+
+              {isMobile && (
+                <button
+                  onClick={() => openSettings("main")}
+                  className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/10 transition-all"
+                >
+                  <Settings className="h-4.5 w-4.5 text-white/80" />
+                </button>
+              )}
+
+              <button
+                onClick={toggleFullscreen}
+                className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/10 active:scale-90 transition-all"
+              >
+                {isFullscreen
+                  ? <Minimize className="h-4.5 w-4.5 text-white/80" />
+                  : <Maximize className="h-4.5 w-4.5 text-white/80" />
+                }
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {showSettingsPanel && (
+        <div
+          className={cn(
+            "fixed z-[250] transition-all duration-300",
+            isMobile ? "inset-0 flex items-end justify-center" : "absolute bottom-20 right-4"
+          )}
+          onClick={closeSettings}
+        >
+          {isMobile && <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />}
+          <div
+            className={cn(
+              "relative overflow-hidden",
+              isMobile
+                ? "w-full max-h-[65vh] rounded-t-2xl"
+                : "w-72 rounded-xl shadow-2xl"
+            )}
             style={{
-              background: "oklch(0.12 0.03 255 / 0.98)",
-              backdropFilter: "blur(32px)",
-              border: "1px solid oklch(0.7 0.05 240 / 0.15)",
+              background: "oklch(0.10 0.02 260 / 0.97)",
+              backdropFilter: "blur(32px) saturate(180%)",
+              border: "1px solid oklch(0.7 0.05 240 / 0.12)",
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="w-10 h-1 bg-white/20 rounded-full mx-auto mb-4" />
-            <h3 className="text-lg font-bold text-white mb-4">Settings</h3>
+            {isMobile && <div className="w-9 h-1 bg-white/20 rounded-full mx-auto mt-3 mb-1" />}
 
-            {sources.length > 1 && (
-              <div className="mb-4">
-                <p className="text-xs text-white/50 uppercase tracking-wider mb-2">Quality</p>
-                <div className="flex flex-wrap gap-2">
-                  {sources.map((source) => (
+            <div className="p-3">
+              {settingsTab === "main" && (
+                <div className="space-y-0.5">
+                  {sources.length > 1 && (
                     <button
-                      key={source.quality}
-                      onClick={() => { handleQualityChange(source.quality); setShowSettingsPanel(false) }}
+                      onClick={() => setSettingsTab("quality")}
+                      className="w-full flex items-center justify-between px-3 py-3 rounded-lg hover:bg-white/[0.06] transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Settings className="h-4 w-4 text-white/50" />
+                        <span className="text-sm text-white font-medium">Quality</span>
+                      </div>
+                      <span className="text-xs text-white/40">{selectedQuality}</span>
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setSettingsTab("speed")}
+                    className="w-full flex items-center justify-between px-3 py-3 rounded-lg hover:bg-white/[0.06] transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Gauge className="h-4 w-4 text-white/50" />
+                      <span className="text-sm text-white font-medium">Speed</span>
+                    </div>
+                    <span className="text-xs text-white/40">{playbackRate}x</span>
+                  </button>
+                  {subtitles.length > 0 && (
+                    <button
+                      onClick={() => setSettingsTab("subtitles")}
+                      className="w-full flex items-center justify-between px-3 py-3 rounded-lg hover:bg-white/[0.06] transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Captions className="h-4 w-4 text-white/50" />
+                        <span className="text-sm text-white font-medium">Subtitles</span>
+                      </div>
+                      <span className="text-xs text-white/40">{selectedSubtitle ? subtitles.find(s => s.id === selectedSubtitle)?.label : "Off"}</span>
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {settingsTab === "quality" && (
+                <div>
+                  <button onClick={() => setSettingsTab("main")} className="flex items-center gap-2 px-3 py-2 text-xs text-white/50 hover:text-white/70 transition-colors mb-1">
+                    <ChevronRight className="h-3 w-3 rotate-180" />
+                    Quality
+                  </button>
+                  <div className="space-y-0.5">
+                    {sources.map((source) => (
+                      <button
+                        key={source.quality}
+                        onClick={() => handleQualityChange(source.quality)}
+                        className={cn(
+                          "w-full flex items-center justify-between px-3 py-2.5 rounded-lg transition-colors",
+                          selectedQuality === source.quality ? "bg-white/[0.08]" : "hover:bg-white/[0.04]"
+                        )}
+                      >
+                        <span className={cn("text-sm", selectedQuality === source.quality ? "text-white font-semibold" : "text-white/70")}>{source.quality}</span>
+                        {selectedQuality === source.quality && <Check className="h-3.5 w-3.5 text-primary" />}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {settingsTab === "speed" && (
+                <div>
+                  <button onClick={() => setSettingsTab("main")} className="flex items-center gap-2 px-3 py-2 text-xs text-white/50 hover:text-white/70 transition-colors mb-1">
+                    <ChevronRight className="h-3 w-3 rotate-180" />
+                    Speed
+                  </button>
+                  <div className="space-y-0.5">
+                    {playbackRates.map((rate) => (
+                      <button
+                        key={rate}
+                        onClick={() => { setPlaybackRate(rate); closeSettings() }}
+                        className={cn(
+                          "w-full flex items-center justify-between px-3 py-2.5 rounded-lg transition-colors",
+                          playbackRate === rate ? "bg-white/[0.08]" : "hover:bg-white/[0.04]"
+                        )}
+                      >
+                        <span className={cn("text-sm", playbackRate === rate ? "text-white font-semibold" : "text-white/70")}>{rate === 1 ? "Normal" : `${rate}x`}</span>
+                        {playbackRate === rate && <Check className="h-3.5 w-3.5 text-primary" />}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {settingsTab === "subtitles" && (
+                <div>
+                  <button onClick={() => setSettingsTab("main")} className="flex items-center gap-2 px-3 py-2 text-xs text-white/50 hover:text-white/70 transition-colors mb-1">
+                    <ChevronRight className="h-3 w-3 rotate-180" />
+                    Subtitles
+                  </button>
+                  <div className="space-y-0.5">
+                    <button
+                      onClick={() => { setSelectedSubtitle(null); closeSettings() }}
                       className={cn(
-                        "px-4 py-2.5 rounded-xl text-sm font-medium transition-all",
-                        selectedQuality === source.quality
-                          ? "bg-primary text-white"
-                          : "bg-white/10 text-white hover:bg-white/20"
+                        "w-full flex items-center justify-between px-3 py-2.5 rounded-lg transition-colors",
+                        selectedSubtitle === null ? "bg-white/[0.08]" : "hover:bg-white/[0.04]"
                       )}
                     >
-                      {source.quality}
+                      <span className={cn("text-sm", selectedSubtitle === null ? "text-white font-semibold" : "text-white/70")}>Off</span>
+                      {selectedSubtitle === null && <Check className="h-3.5 w-3.5 text-primary" />}
                     </button>
-                  ))}
+                    {subtitles.map((sub) => (
+                      <button
+                        key={sub.id}
+                        onClick={() => { setSelectedSubtitle(sub.id); closeSettings() }}
+                        className={cn(
+                          "w-full flex items-center justify-between px-3 py-2.5 rounded-lg transition-colors",
+                          selectedSubtitle === sub.id ? "bg-white/[0.08]" : "hover:bg-white/[0.04]"
+                        )}
+                      >
+                        <span className={cn("text-sm", selectedSubtitle === sub.id ? "text-white font-semibold" : "text-white/70")}>{sub.label}</span>
+                        {selectedSubtitle === sub.id && <Check className="h-3.5 w-3.5 text-primary" />}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
-
-            <div className="mb-4">
-              <p className="text-xs text-white/50 uppercase tracking-wider mb-2">Playback Speed</p>
-              <div className="flex flex-wrap gap-2">
-                {playbackRates.map((rate) => (
-                  <button
-                    key={rate}
-                    onClick={() => { setPlaybackRate(rate); setShowSettingsPanel(false) }}
-                    className={cn(
-                      "px-4 py-2.5 rounded-xl text-sm font-medium transition-all",
-                      playbackRate === rate
-                        ? "bg-primary text-white"
-                        : "bg-white/10 text-white hover:bg-white/20"
-                    )}
-                  >
-                    {rate}x
-                  </button>
-                ))}
-              </div>
+              )}
             </div>
-
-            {subtitles.length > 0 && (
-              <div>
-                <p className="text-xs text-white/50 uppercase tracking-wider mb-2">Subtitles</p>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => { setSelectedSubtitle(null); setShowSettingsPanel(false) }}
-                    className={cn(
-                      "px-4 py-2.5 rounded-xl text-sm font-medium transition-all",
-                      selectedSubtitle === null
-                        ? "bg-primary text-white"
-                        : "bg-white/10 text-white hover:bg-white/20"
-                    )}
-                  >
-                    Off
-                  </button>
-                  {subtitles.map((sub) => (
-                    <button
-                      key={sub.id}
-                      onClick={() => { setSelectedSubtitle(sub.id); setShowSettingsPanel(false) }}
-                      className={cn(
-                        "px-4 py-2.5 rounded-xl text-sm font-medium transition-all",
-                        selectedSubtitle === sub.id
-                          ? "bg-primary text-white"
-                          : "bg-white/10 text-white hover:bg-white/20"
-                      )}
-                    >
-                      {sub.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         </div>
       )}
 
-      <div
-        className={cn(
-          "absolute bottom-0 left-0 right-0 z-[100] bg-gradient-to-t from-black/90 via-black/60 to-transparent pt-12 sm:pt-16 pb-3 sm:pb-4 px-3 sm:px-4 transition-opacity duration-300",
-          showControls ? "opacity-100" : "opacity-0 pointer-events-none",
-        )}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {isMobile && (
-          <div className="flex items-center justify-between text-xs text-white/80 mb-1 px-0.5">
-            <span className="font-medium tabular-nums">{formatTime(currentTime)}</span>
-            <span className="font-medium tabular-nums">{formatTime(duration)}</span>
-          </div>
-        )}
-
-        <div
-          ref={progressRef}
-          className={cn(
-            "relative cursor-pointer group",
-            isMobile ? "py-4 mb-1" : "py-3 mb-2"
-          )}
-          onMouseDown={handleSeekMouseDown}
-          onTouchStart={handleTouchStart}
-        >
-          <div className={cn(
-            "relative bg-white/20 rounded-full transition-all",
-            isSeeking ? "h-2.5" : isMobile ? "h-2" : "h-1.5 group-hover:h-2"
-          )}>
-            <div
-              className="absolute top-0 left-0 h-full bg-white/40 rounded-full"
-              style={{ width: `${loaded * 100}%` }}
-            />
-            <div
-              className="absolute top-0 left-0 h-full bg-primary rounded-full"
-              style={{ width: `${played * 100}%` }}
-            />
-            <div
-              className={cn(
-                "absolute top-1/2 -translate-y-1/2 bg-white rounded-full shadow-lg transition-transform border-2 border-primary",
-                isMobile ? "w-5 h-5" : "w-4 h-4",
-                isSeeking ? "scale-125" : "scale-100 group-hover:scale-110"
-              )}
-              style={{ left: `calc(${played * 100}% - ${isMobile ? 10 : 8}px)` }}
-            />
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5 sm:gap-3">
-            <button
-              onClick={togglePlayPause}
-              className="p-2 sm:p-2 rounded-full hover:bg-white/10 active:bg-white/20 transition-colors"
-            >
-              {isPlaying ? (
-                <Pause className="h-6 w-6 sm:h-7 sm:w-7 text-white fill-white" />
-              ) : (
-                <Play className="h-6 w-6 sm:h-7 sm:w-7 text-white fill-white" />
-              )}
-            </button>
-
-            <button
-              onClick={() => handleSkip(-10)}
-              className="p-2 rounded-full hover:bg-white/10 active:bg-white/20 transition-colors hidden xs:flex"
-            >
-              <SkipBack className="h-5 w-5 text-white" />
-            </button>
-
-            <button
-              onClick={() => handleSkip(10)}
-              className="p-2 rounded-full hover:bg-white/10 active:bg-white/20 transition-colors hidden xs:flex"
-            >
-              <SkipForward className="h-5 w-5 text-white" />
-            </button>
-
-            {!isMobile && (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    const newMuted = !isMuted
-                    setIsMuted(newMuted)
-                    if (videoRef.current) videoRef.current.muted = newMuted
-                  }}
-                  className="p-2 rounded-full hover:bg-white/10 transition-colors"
-                >
-                  {isMuted || volume === 0 ? (
-                    <VolumeX className="h-5 w-5 text-white" />
-                  ) : (
-                    <Volume2 className="h-5 w-5 text-white" />
-                  )}
-                </button>
-                <input
-                  type="range"
-                  min={0}
-                  max={1}
-                  step={0.05}
-                  value={isMuted ? 0 : volume}
-                  onChange={(e) => {
-                    const newVol = parseFloat(e.target.value)
-                    setVolume(newVol)
-                    setIsMuted(false)
-                    if (videoRef.current) {
-                      videoRef.current.volume = newVol
-                      videoRef.current.muted = false
-                    }
-                  }}
-                  className="w-20 h-1 bg-white/30 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white"
-                />
-              </div>
-            )}
-
-            {!isMobile && (
-              <span className="text-white text-sm font-medium ml-2 tabular-nums">
-                {formatTime(currentTime)} / {formatTime(duration)}
-              </span>
-            )}
-          </div>
-
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            <button
-              onClick={toggleFullscreen}
-              className="p-2 rounded-full hover:bg-white/10 active:bg-white/20 transition-colors"
-            >
-              {isFullscreen ? (
-                <Minimize className="h-5 w-5 sm:h-5 sm:w-5 text-white" />
-              ) : (
-                <Maximize className="h-5 w-5 sm:h-5 sm:w-5 text-white" />
-              )}
-            </button>
-          </div>
-        </div>
-      </div>
-
       {showNextEpisode && nextEpisode && (
-        <div
-          className={cn(
-            "absolute z-[100] transition-all duration-300",
-            isMobile ? "bottom-28 right-3 left-3" : "bottom-24 right-4",
-            showControls ? "opacity-100 translate-x-0" : "opacity-0 translate-x-4",
-          )}
-        >
+        <div className={cn(
+          "absolute z-[100] transition-all duration-500",
+          isMobile ? "bottom-28 right-3 left-3" : "bottom-24 right-6",
+          showControls ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3",
+        )}>
           <button
             onClick={nextEpisode.onPlay}
             className={cn(
-              "flex items-center justify-center gap-2 bg-white text-black font-semibold rounded-xl hover:bg-white/90 transition-all shadow-lg hover:scale-105 active:scale-95",
-              isMobile ? "w-full px-4 py-3 text-sm" : "px-5 py-3 text-sm"
+              "flex items-center gap-2 font-semibold rounded-xl transition-all shadow-xl hover:shadow-2xl hover:scale-[1.03] active:scale-95",
+              isMobile ? "w-full justify-center px-5 py-3.5 text-sm" : "px-5 py-3 text-sm"
             )}
+            style={{
+              background: "oklch(0.65 0.22 250)",
+              color: "white",
+              boxShadow: "0 4px 24px oklch(0.65 0.22 250 / 0.4)"
+            }}
           >
             <span className="truncate">Next: {nextEpisode.title}</span>
-            <ChevronRight className="h-5 w-5 flex-shrink-0" />
+            <ChevronRight className="h-4 w-4 flex-shrink-0" />
           </button>
         </div>
       )}
 
       {!isPlaying && !isBuffering && !hasError && isReady && (
         <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
-          <div className={cn(
-            "rounded-full bg-primary/90 flex items-center justify-center shadow-2xl",
-            isMobile ? "w-16 h-16" : "w-20 h-20"
-          )}>
-            <Play className={cn("text-white fill-white ml-1", isMobile ? "h-8 w-8" : "h-10 w-10")} />
+          <div
+            className={cn("rounded-full flex items-center justify-center backdrop-blur-sm", isMobile ? "w-16 h-16" : "w-18 h-18")}
+            style={{ background: "oklch(0.65 0.22 250 / 0.85)", boxShadow: "0 0 40px oklch(0.65 0.22 250 / 0.3)" }}
+          >
+            <Play className={cn("text-white fill-white ml-1", isMobile ? "h-7 w-7" : "h-8 w-8")} />
           </div>
         </div>
       )}
 
       {isBuffering && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/30 z-50">
-          <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <div className="absolute inset-0 flex items-center justify-center z-50 pointer-events-none">
+          <div className="w-14 h-14 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center">
+            <Loader2 className="h-8 w-8 animate-spin" style={{ color: "oklch(0.65 0.22 250)" }} />
+          </div>
         </div>
       )}
 
       {hasError && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 z-50 gap-4 p-8">
-          <AlertCircle className="h-16 w-16 text-red-500" />
-          <p className="text-white text-lg font-medium text-center max-w-md">{errorMessage}</p>
-          <div className="flex gap-3 mt-2">
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/85 z-50 gap-5 p-8">
+          <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center">
+            <AlertCircle className="h-8 w-8 text-red-400" />
+          </div>
+          <div className="text-center max-w-sm">
+            <p className="text-white text-base font-medium mb-1">Playback Error</p>
+            <p className="text-white/50 text-sm">{errorMessage}</p>
+          </div>
+          <div className="flex gap-3">
             <button
               onClick={handleRetry}
-              className="flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary/90 text-white font-medium rounded-md transition-colors"
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:scale-[1.03] active:scale-95"
+              style={{ background: "oklch(0.65 0.22 250)", boxShadow: "0 2px 12px oklch(0.65 0.22 250 / 0.3)" }}
             >
               <RefreshCw className="h-4 w-4" />
               Retry
             </button>
             {sources.length > 1 && (
               <button
-                onClick={() => {
-                  setShowControls(true)
-                  setShowQualityMenu(true)
-                }}
-                className="flex items-center gap-2 px-5 py-2.5 bg-white/10 hover:bg-white/20 text-white font-medium rounded-md transition-colors"
+                onClick={() => openSettings("quality")}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-white/10 hover:bg-white/15 transition-all hover:scale-[1.03] active:scale-95"
               >
                 <Settings className="h-4 w-4" />
-                Try Different Quality
+                Change Quality
               </button>
             )}
           </div>
@@ -1025,9 +904,9 @@ export function VideoPlayer({
       )}
 
       {!isReady && !hasError && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black z-50 gap-4">
-          <Loader2 className="h-12 w-12 animate-spin text-primary" />
-          <p className="text-white/60 text-sm">Loading player...</p>
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black z-50 gap-3">
+          <Loader2 className="h-10 w-10 animate-spin" style={{ color: "oklch(0.65 0.22 250)" }} />
+          <p className="text-white/40 text-sm font-medium">Loading...</p>
         </div>
       )}
     </div>
