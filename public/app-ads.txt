@@ -176,3 +176,8 @@ appnexus.com, 16227, RESELLER, f5ab79cb980f11d1
 triplelift.com, 8784, RESELLER, 6c33edb13117fd86
 triplelift.com, 14697, RESELLER, 6c33edb13117fd86
 indexexchange.com, 215209, RESELLER, 50b1c356f2c5c8fc
+adwmg.com, 100956, reseller, c9688a22012618e7
+criteo.com, b-072730, reseller, 9fac4a4a87c2a44f
+growintech.co, 2723d092b63885e0d7c260cc007e8b9d81642, reseller, 9d8dfe5c6b00fb37
+media.net, 8cu9b72o6, reseller
+triplelift.com, 12908, reseller, 6c33edb13117fd86
