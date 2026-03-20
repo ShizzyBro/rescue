@@ -430,9 +430,9 @@ export function SeriesDetail({ series, frenchVersion }: SeriesDetailProps) {
                   <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Cast</h3>
                 </div>
                 <div className="grid grid-cols-2 lg:grid-cols-1 gap-2">
-                  {series.actors.slice(0, 8).map((actor) => (
+                  {series.actors.slice(0, 8).map((actor, idx) => (
                     <div
-                      key={actor.name}
+                      key={`${actor.name}-${idx}`}
                       className="flex items-center gap-2.5 p-2 rounded-xl group cursor-pointer transition-all duration-200 hover:bg-white/[0.05]"
                     >
                       <div className="relative w-9 h-9 rounded-full overflow-hidden flex-shrink-0 ring-1 ring-white/10 group-hover:ring-primary/40 transition-all">
