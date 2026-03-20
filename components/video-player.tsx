@@ -213,28 +213,34 @@ export function VideoPlayer({
     if (!vid) return
     const existingTracks = vid.querySelectorAll("track")
     existingTracks.forEach((t) => t.remove())
+    if (subtitles.length === 0) return
     subtitles.forEach((sub) => {
       const track = document.createElement("track")
       track.kind = "subtitles"
       track.src = sub.src
       track.srclang = sub.language
       track.label = sub.label
-      if (selectedSubtitle === sub.id) track.default = true
       vid.appendChild(track)
     })
-    for (let i = 0; i < vid.textTracks.length; i++) {
-      vid.textTracks[i].mode = subtitles[i] && selectedSubtitle === subtitles[i].id ? "showing" : "hidden"
-    }
+    requestAnimationFrame(() => {
+      for (let i = 0; i < vid.textTracks.length; i++) {
+        const tt = vid.textTracks[i]
+        const matchingSub = subtitles.find(s => s.language === tt.language && s.label === tt.label)
+        tt.mode = matchingSub && selectedSubtitle === matchingSub.id ? "showing" : "hidden"
+      }
+    })
   }, [subtitles, selectedSubtitle])
+
+  const controlBarHoveredRef = useRef(false)
 
   const resetHideTimer = useCallback(() => {
     if (hideControlsTimeout.current) clearTimeout(hideControlsTimeout.current)
     hideControlsTimeout.current = setTimeout(() => {
-      if (isPlayingRef.current && !menuOpenRef.current) {
+      if (isPlayingRef.current && !menuOpenRef.current && !controlBarHoveredRef.current) {
         setShowControls(false)
         setShowSettingsPanel(false)
       }
-    }, 3500)
+    }, 5000)
   }, [])
 
   const revealControls = useCallback(() => {
@@ -466,10 +472,14 @@ export function VideoPlayer({
       )}
       onMouseMove={handleMouseMove}
       onMouseLeave={() => {
-        if (!menuOpenRef.current) {
+        if (!menuOpenRef.current && !controlBarHoveredRef.current) {
+          if (hideControlsTimeout.current) clearTimeout(hideControlsTimeout.current)
           hideControlsTimeout.current = setTimeout(() => {
-            if (isPlayingRef.current && !menuOpenRef.current) setShowControls(false)
-          }, 800)
+            if (isPlayingRef.current && !menuOpenRef.current && !controlBarHoveredRef.current) {
+              setShowControls(false)
+              setShowSettingsPanel(false)
+            }
+          }, 2000)
         }
       }}
     >
@@ -477,6 +487,7 @@ export function VideoPlayer({
         <video
           ref={videoRef}
           className="w-full h-full object-contain"
+          crossOrigin="anonymous"
           playsInline
           poster={poster}
           preload="metadata"
@@ -532,6 +543,14 @@ export function VideoPlayer({
           showControls ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2 pointer-events-none",
         )}
         onClick={(e) => e.stopPropagation()}
+        onMouseEnter={() => {
+          controlBarHoveredRef.current = true
+          if (hideControlsTimeout.current) clearTimeout(hideControlsTimeout.current)
+        }}
+        onMouseLeave={() => {
+          controlBarHoveredRef.current = false
+          resetHideTimer()
+        }}
       >
         <div className="bg-gradient-to-t from-black/80 via-black/40 to-transparent px-4 sm:px-6 pb-4 sm:pb-5 pt-16">
           <div
