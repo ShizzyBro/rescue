@@ -170,13 +170,19 @@ export function Navbar() {
             href="https://github.com/mc-shizzy/Apkhandy-/releases/download/3.0/HandyFlix.apk"
             download
             onClick={() => setMobileMenuOpen(false)}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200"
-            style={{ color: "oklch(0.58 0.22 245)" }}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-bold transition-all duration-200 active:scale-[0.97]"
+            style={{
+              background: "linear-gradient(135deg, oklch(0.5 0.2 245) 0%, oklch(0.42 0.2 265) 100%)",
+              color: "white",
+              boxShadow: "0 4px 16px oklch(0.5 0.2 250 / 0.25)",
+            }}
           >
-            <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="currentColor" aria-hidden="true">
-              <path d="M17.523 15.341a.86.86 0 0 1-.862-.862.86.86 0 0 1 .862-.862.86.86 0 0 1 .862.862.86.86 0 0 1-.862.862m-11.046 0a.86.86 0 0 1-.862-.862.86.86 0 0 1 .862-.862.86.86 0 0 1 .862.862.86.86 0 0 1-.862.862m11.4-6.177l1.716-2.972a.356.356 0 0 0-.131-.486.356.356 0 0 0-.486.131l-1.74 3.015A10.29 10.29 0 0 0 12 8.25c-1.527 0-2.968.344-4.236.952L6.024 6.187a.356.356 0 0 0-.486-.131.356.356 0 0 0-.131.486l1.716 2.972C4.968 10.71 3.5 12.704 3.5 15h17c0-2.296-1.468-4.29-3.623-5.836" />
+            <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
             </svg>
-            Download App
+            Get the App
           </a>
         </nav>
       </div>
@@ -296,23 +302,32 @@ export function Navbar() {
                 </kbd>
               </Link>
 
-              {/* Download App CTA — Android only */}
+              {/* Download App CTA */}
               <a
                 href="https://github.com/mc-shizzy/Apkhandy-/releases/download/3.0/HandyFlix.apk"
                 download
-                className="flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all duration-200 hover:scale-[1.03] active:scale-95"
+                className="group relative flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all duration-200 hover:scale-[1.03] active:scale-95 overflow-hidden"
                 style={{
-                  background: "oklch(0.58 0.22 245 / 0.14)",
-                  color: "oklch(0.78 0.15 245)",
-                  border: "1px solid oklch(0.58 0.22 245 / 0.25)",
-                  boxShadow: "0 0 20px oklch(0.58 0.22 245 / 0.12), inset 0 1px 0 oklch(0.58 0.22 245 / 0.1)",
+                  background: "linear-gradient(135deg, oklch(0.5 0.2 245) 0%, oklch(0.42 0.2 265) 100%)",
+                  color: "white",
+                  boxShadow: "0 4px 16px oklch(0.5 0.2 250 / 0.3), inset 0 1px 0 oklch(1 0 0 / 0.12)",
                 }}
                 aria-label="Download Android App"
               >
-                <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 shrink-0" fill="currentColor" aria-hidden="true">
-                  <path d="M17.523 15.341a.86.86 0 0 1-.862-.862.86.86 0 0 1 .862-.862.86.86 0 0 1 .862.862.86.86 0 0 1-.862.862m-11.046 0a.86.86 0 0 1-.862-.862.86.86 0 0 1 .862-.862.86.86 0 0 1 .862.862.86.86 0 0 1-.862.862m11.4-6.177l1.716-2.972a.356.356 0 0 0-.131-.486.356.356 0 0 0-.486.131l-1.74 3.015A10.29 10.29 0 0 0 12 8.25c-1.527 0-2.968.344-4.236.952L6.024 6.187a.356.356 0 0 0-.486-.131.356.356 0 0 0-.131.486l1.716 2.972C4.968 10.71 3.5 12.704 3.5 15h17c0-2.296-1.468-4.29-3.623-5.836" />
+                <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
                 </svg>
-                <span>Download</span>
+                <span className="hidden sm:inline">Get App</span>
+                <span
+                  className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                  style={{
+                    background: "linear-gradient(90deg, transparent 0%, oklch(1 0 0 / 0.1) 50%, transparent 100%)",
+                    backgroundSize: "200% 100%",
+                    animation: "shimmer 2s linear infinite",
+                  }}
+                />
               </a>
 
               {/* Hamburger — mobile */}

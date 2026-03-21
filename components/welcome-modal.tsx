@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from "react"
 import Image from "next/image"
-import { X, Monitor, ShieldOff, Download, Sparkles, Smartphone } from "lucide-react"
+import { X, Download, Sparkles, Smartphone, Zap, Wifi, Shield } from "lucide-react"
 
-const STORAGE_KEY = "handyflix_welcome_seen"
+const STORAGE_KEY = "handyflix_welcome_last_shown"
 
 interface WelcomeModalProps {
   show: boolean
@@ -17,16 +17,19 @@ export function WelcomeModal({ show }: WelcomeModalProps) {
   const [closing, setClosing] = useState(false)
   const [deviceType, setDeviceType] = useState<DeviceType>("other")
   const [downloadCount, setDownloadCount] = useState<number | null>(null)
-  const [version, setVersion] = useState<string>("v2.1")
+  const [version, setVersion] = useState<string>("3.0")
   const [publishedAt, setPublishedAt] = useState<string | null>(null)
 
   useEffect(() => {
     if (!show) return
-    // Only show once ever — check localStorage
-    const seen = localStorage.getItem(STORAGE_KEY)
-    if (seen) return
-    
-    // Detect device type
+
+    const lastShown = localStorage.getItem(STORAGE_KEY)
+    if (lastShown) {
+      const lastDate = new Date(lastShown).toDateString()
+      const today = new Date().toDateString()
+      if (lastDate === today) return
+    }
+
     const ua = navigator.userAgent || navigator.vendor || (window as any).opera
     if (/android/i.test(ua)) {
       setDeviceType("android")
@@ -35,204 +38,199 @@ export function WelcomeModal({ show }: WelcomeModalProps) {
     } else {
       setDeviceType("other")
     }
-    
-    // Fetch download count, version, and publish date
+
     fetch("/api/download-stats")
       .then((res) => res.json())
       .then((data) => {
         setDownloadCount(data.downloads)
-        setVersion(data.version || "v2.1")
+        setVersion(data.version || "3.0")
         setPublishedAt(data.publishedAt)
       })
       .catch(() => setDownloadCount(0))
-    
-    // Small delay after splash screen ends
-    const timer = setTimeout(() => setVisible(true), 400)
+
+    const timer = setTimeout(() => setVisible(true), 500)
     return () => clearTimeout(timer)
   }, [show])
 
   const handleClose = () => {
-    localStorage.setItem(STORAGE_KEY, "true")
+    localStorage.setItem(STORAGE_KEY, new Date().toISOString())
     setClosing(true)
     setTimeout(() => {
       setVisible(false)
       setClosing(false)
-    }, 300)
+    }, 350)
   }
 
   if (!visible) return null
 
   return (
     <div
-      className={`fixed inset-0 z-[250] flex items-center justify-center px-4 transition-opacity duration-300 ${
+      className={`fixed inset-0 z-[250] flex items-end sm:items-center justify-center transition-opacity duration-350 ${
         closing ? "opacity-0" : "opacity-100"
       }`}
     >
-      {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+        className="absolute inset-0"
+        style={{ background: "oklch(0.03 0.02 260 / 0.8)", backdropFilter: "blur(12px)" }}
         onClick={handleClose}
       />
 
-      {/* Modal */}
       <div
-        className={`relative z-10 w-full max-w-[380px] rounded-3xl overflow-hidden transition-all duration-300 ${
-          closing ? "scale-95 opacity-0" : "scale-100 opacity-100"
+        className={`relative z-10 w-full max-w-[400px] mx-4 mb-4 sm:mb-0 transition-all duration-350 ${
+          closing ? "translate-y-8 scale-95 opacity-0" : "translate-y-0 scale-100 opacity-100"
         }`}
         style={{
-          background: "oklch(0.11 0.025 255)",
-          border: "1px solid oklch(0.7 0.05 240 / 0.15)",
-          boxShadow: "0 25px 80px oklch(0 0 0 / 0.7), inset 0 1px 0 oklch(1 0 0 / 0.06)",
+          background: "linear-gradient(180deg, oklch(0.13 0.03 255) 0%, oklch(0.09 0.025 260) 100%)",
+          borderRadius: "24px",
+          border: "1px solid oklch(0.5 0.08 245 / 0.15)",
+          boxShadow: "0 32px 80px oklch(0 0 0 / 0.6), 0 0 0 1px oklch(1 0 0 / 0.03) inset",
         }}
       >
-        {/* Close button */}
         <button
           onClick={handleClose}
-          className="absolute top-4 right-4 z-20 p-2 rounded-full hover:bg-white/10 transition-colors"
+          className="absolute top-4 right-4 z-20 p-1.5 rounded-full transition-all duration-200"
+          style={{ background: "oklch(0.2 0.02 255 / 0.6)" }}
           aria-label="Close"
         >
-          <X className="h-5 w-5 text-muted-foreground" />
+          <X className="h-4 w-4 text-white/50" />
         </button>
 
-        {/* Content */}
-        <div className="px-6 pt-6 pb-5">
-          {/* Logo and title */}
-          <div className="flex items-center gap-3 mb-5">
-            <div
-              className="rounded-xl overflow-hidden shrink-0"
-              style={{
-                boxShadow: "0 0 20px oklch(0.58 0.22 245 / 0.4)",
-              }}
-            >
+        <div className="px-6 pt-7 pb-6">
+          <div className="flex flex-col items-center text-center mb-5">
+            <div className="relative mb-4">
+              <div
+                className="absolute inset-0 rounded-2xl"
+                style={{
+                  background: "oklch(0.58 0.22 245 / 0.35)",
+                  filter: "blur(24px)",
+                  transform: "scale(2)",
+                }}
+              />
               <Image
                 src="/hf-logo.png"
                 alt="HANDYFLIX"
-                width={44}
-                height={44}
-                className="rounded-xl"
+                width={56}
+                height={56}
+                priority
+                className="relative rounded-2xl"
+                style={{
+                  boxShadow: "0 0 0 1px oklch(0.5 0.15 245 / 0.3), 0 8px 32px oklch(0.2 0.15 250 / 0.5)",
+                }}
               />
             </div>
-            <div>
-              <h2 className="text-lg font-bold text-foreground leading-tight">
-                Welcome to HANDYFLIX!
-              </h2>
-              <p className="text-[11px] text-muted-foreground mt-0.5">
-                Stream movies & series without limits
-              </p>
-            </div>
+
+            <h2 className="text-xl font-bold text-white tracking-tight">
+              Get the HandyFlix App
+            </h2>
+            <p className="text-[13px] text-white/40 mt-1.5 leading-relaxed max-w-[280px]">
+              A smoother, faster experience with exclusive features
+            </p>
           </div>
 
-          {/* Version and update date badge */}
-          <div className="flex items-center justify-center gap-2 mb-3 flex-wrap">
-            {/* Version badge */}
-            <div
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold"
-              style={{
-                background: "oklch(0.5 0.18 245 / 0.15)",
-                color: "oklch(0.75 0.15 245)",
-                border: "1px solid oklch(0.5 0.18 245 / 0.25)",
-              }}
-            >
-              <Sparkles className="h-3 w-3" />
-              <span>NEW {version}</span>
-            </div>
-            
-            {/* Published date badge */}
+          <div className="flex items-center justify-center gap-2 mb-5 flex-wrap">
+            {version && (
+              <span
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold"
+                style={{
+                  background: "oklch(0.58 0.22 245 / 0.12)",
+                  color: "oklch(0.72 0.14 245)",
+                  border: "1px solid oklch(0.58 0.22 245 / 0.2)",
+                }}
+              >
+                <Sparkles className="h-3 w-3" />
+                v{version}
+              </span>
+            )}
             {publishedAt && (
-              <div
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium"
+              <span
+                className="px-2.5 py-1 rounded-full text-[11px] font-medium"
                 style={{
-                  background: "oklch(0.2 0.02 255 / 0.5)",
-                  color: "oklch(0.65 0.02 245)",
-                  border: "1px solid oklch(0.4 0.02 245 / 0.2)",
+                  background: "oklch(0.2 0.01 255 / 0.5)",
+                  color: "oklch(0.55 0.02 250)",
                 }}
               >
-                <span>Updated {new Date(publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
-              </div>
+                {new Date(publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+              </span>
             )}
-            
-            {/* Download counter */}
             {downloadCount !== null && downloadCount > 0 && (
-              <div
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold"
+              <span
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold"
                 style={{
-                  background: "oklch(0.45 0.15 145 / 0.15)",
-                  color: "oklch(0.7 0.15 145)",
-                  border: "1px solid oklch(0.5 0.15 145 / 0.25)",
+                  background: "oklch(0.5 0.15 145 / 0.1)",
+                  color: "oklch(0.65 0.12 145)",
+                  border: "1px solid oklch(0.5 0.15 145 / 0.15)",
                 }}
               >
-                <Download className="h-3 w-3" />
-                <span>{downloadCount.toLocaleString()}+ downloads</span>
-              </div>
+                <Download className="h-2.5 w-2.5" />
+                {downloadCount.toLocaleString()}+
+              </span>
             )}
           </div>
 
-          {/* Download App button — only for Android */}
+          <div
+            className="grid grid-cols-3 gap-2 mb-5 p-3 rounded-2xl"
+            style={{
+              background: "oklch(0.08 0.02 260 / 0.6)",
+              border: "1px solid oklch(0.3 0.03 255 / 0.15)",
+            }}
+          >
+            <FeatureItem icon={<Zap className="h-4 w-4" />} label="Fast" />
+            <FeatureItem icon={<Wifi className="h-4 w-4" />} label="Offline" />
+            <FeatureItem icon={<Shield className="h-4 w-4" />} label="Ad-Free" />
+          </div>
+
           {deviceType === "android" ? (
             <a
               href="https://github.com/mc-shizzy/Apkhandy-/releases/download/3.0/HandyFlix.apk"
               download
               onClick={handleClose}
-              className="w-full py-3.5 rounded-2xl text-sm font-bold text-white relative overflow-hidden flex items-center justify-center gap-2 active:scale-95 transition-transform duration-150"
+              className="w-full py-3.5 rounded-2xl text-sm font-bold text-white relative overflow-hidden flex items-center justify-center gap-2.5 active:scale-[0.97] transition-transform duration-150"
               style={{
-                background: "linear-gradient(135deg, oklch(0.5 0.18 245) 0%, oklch(0.45 0.2 260) 100%)",
-                boxShadow: "0 8px 32px oklch(0.5 0.2 250 / 0.4), inset 0 1px 0 oklch(1 0 0 / 0.15)",
+                background: "linear-gradient(135deg, oklch(0.52 0.2 245) 0%, oklch(0.42 0.2 265) 100%)",
+                boxShadow: "0 6px 24px oklch(0.5 0.2 250 / 0.35), inset 0 1px 0 oklch(1 0 0 / 0.12)",
               }}
             >
-              {/* Android icon */}
-              <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="currentColor" aria-hidden="true">
-                <path d="M17.523 15.341a.86.86 0 0 1-.862-.862.86.86 0 0 1 .862-.862.86.86 0 0 1 .862.862.86.86 0 0 1-.862.862m-11.046 0a.86.86 0 0 1-.862-.862.86.86 0 0 1 .862-.862.86.86 0 0 1 .862.862.86.86 0 0 1-.862.862m11.4-6.177l1.716-2.972a.356.356 0 0 0-.131-.486.356.356 0 0 0-.486.131l-1.74 3.015A10.29 10.29 0 0 0 12 8.25c-1.527 0-2.968.344-4.236.952L6.024 6.187a.356.356 0 0 0-.486-.131.356.356 0 0 0-.131.486l1.716 2.972C4.968 10.71 3.5 12.704 3.5 15h17c0-2.296-1.468-4.29-3.623-5.836" />
-              </svg>
-              Download for Android
-              {/* Shimmer */}
+              <Download className="h-4 w-4" />
+              Download APK
               <span
-                className="absolute inset-0 opacity-20 pointer-events-none"
+                className="absolute inset-0 pointer-events-none"
                 style={{
-                  background: "linear-gradient(90deg, transparent 0%, oklch(1 0 0 / 0.4) 50%, transparent 100%)",
+                  background: "linear-gradient(90deg, transparent 0%, oklch(1 0 0 / 0.12) 50%, transparent 100%)",
                   backgroundSize: "200% 100%",
-                  animation: "shimmer 2s linear infinite",
+                  animation: "shimmer 2.5s linear infinite",
                 }}
               />
             </a>
           ) : (
             <div
-              className="w-full py-4 px-4 rounded-2xl text-center"
+              className="w-full py-4 rounded-2xl text-center"
               style={{
-                background: "oklch(0.15 0.03 255 / 0.6)",
-                border: "1px solid oklch(0.7 0.05 240 / 0.1)",
+                background: "oklch(0.12 0.02 255 / 0.5)",
+                border: "1px solid oklch(0.3 0.03 255 / 0.15)",
               }}
             >
-              <div className="flex items-center justify-center gap-2 mb-2">
-                <Smartphone className="h-5 w-5" style={{ color: "oklch(0.58 0.22 245)" }} />
-              </div>
-              <p className="text-sm font-semibold text-foreground">Android Only</p>
-              <p className="text-[12px] text-muted-foreground mt-1">
-                This app is available for Android devices only
-              </p>
+              <Smartphone className="h-5 w-5 mx-auto mb-1.5" style={{ color: "oklch(0.5 0.12 245)" }} />
+              <p className="text-sm font-semibold text-white/70">Android Only</p>
+              <p className="text-[11px] text-white/30 mt-0.5">Available for Android devices</p>
             </div>
           )}
 
-          {/* Feature badges */}
-          <div className="flex items-center justify-between mt-4 px-2">
-            <FeatureBadge icon={<Monitor className="h-5 w-5" />} label="4K · HD" />
-            <FeatureBadge icon={<ShieldOff className="h-5 w-5" />} label="No Ads" />
-            <FeatureBadge icon={<Download className="h-5 w-5" />} label="Offline" />
-            <FeatureBadge icon={<Sparkles className="h-5 w-5" />} label="Exclusive" />
-          </div>
+          <button
+            onClick={handleClose}
+            className="w-full mt-3 py-3 rounded-2xl text-sm font-medium text-white/35 hover:text-white/50 hover:bg-white/[0.04] transition-all duration-200"
+          >
+            Continue to Website
+          </button>
         </div>
 
-        {/* Bottom section */}
         <div
-          className="px-6 py-4"
+          className="px-6 py-3"
           style={{
-            background: "oklch(0.08 0.02 260)",
-            borderTop: "1px solid oklch(0.7 0.05 240 / 0.1)",
+            borderTop: "1px solid oklch(0.3 0.03 255 / 0.1)",
           }}
         >
-          <p className="text-[11px] text-muted-foreground/70 text-center leading-relaxed">
-            Enjoy unlimited streaming of movies and TV series.
-            <br />
-            <span style={{ color: "oklch(0.58 0.22 245 / 0.8)" }}>by Andy Mrlit & Infos Partage</span>
+          <p className="text-[10px] text-white/20 text-center tracking-wide">
+            by Andy Mrlit & Infos Partage
           </p>
         </div>
       </div>
@@ -240,19 +238,11 @@ export function WelcomeModal({ show }: WelcomeModalProps) {
   )
 }
 
-function FeatureBadge({ icon, label }: { icon: React.ReactNode; label: string }) {
+function FeatureItem({ icon, label }: { icon: React.ReactNode; label: string }) {
   return (
-    <div className="flex flex-col items-center gap-1.5">
-      <div
-        className="p-2.5 rounded-xl"
-        style={{
-          background: "oklch(0.15 0.03 255 / 0.6)",
-          border: "1px solid oklch(0.7 0.05 240 / 0.1)",
-        }}
-      >
-        <span style={{ color: "oklch(0.7 0.1 245)" }}>{icon}</span>
-      </div>
-      <span className="text-[10px] font-medium text-muted-foreground">{label}</span>
+    <div className="flex flex-col items-center gap-1.5 py-2">
+      <span style={{ color: "oklch(0.6 0.1 245)" }}>{icon}</span>
+      <span className="text-[10px] font-medium text-white/40">{label}</span>
     </div>
   )
 }
