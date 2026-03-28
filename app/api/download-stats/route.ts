@@ -10,7 +10,7 @@ export async function GET() {
         headers: {
           Accept: "application/vnd.github+json",
         },
-        next: { revalidate: 300 },
+        cache: 'force-cache',
       }
     )
 

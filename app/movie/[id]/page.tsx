@@ -5,8 +5,6 @@ import { MovieDetail } from "@/components/movie-detail"
 import { PremiumCarousel } from "@/components/premium-carousel"
 import { fetchInfo, fetchContentVersions, fetchTrending } from "@/lib/api"
 
-export const runtime = 'edge';
-
 interface MoviePageProps {
   params: Promise<{ id: string }>
 }

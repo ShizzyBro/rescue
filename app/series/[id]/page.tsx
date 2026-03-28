@@ -5,8 +5,6 @@ import { Footer } from "@/components/footer"
 import { PremiumCarousel } from "@/components/premium-carousel"
 import { fetchInfo, fetchContentVersions, fetchTrending } from "@/lib/api"
 
-export const runtime = 'edge';
-
 interface PageProps {
   params: Promise<{ id: string }>
 }

@@ -374,7 +374,7 @@ function normalizeSubjectWithInfo(
 export async function fetchTrending(): Promise<NormalizedContent[]> {
   try {
     const res = await fetch(API_ENDPOINTS.trending, {
-      next: { revalidate: 3600 },
+      cache: 'force-cache',
       headers: { Accept: "application/json" },
     })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -401,7 +401,7 @@ async function fetchFrenchVersion(
     
     // Search for French version - cached for 1 hour to reduce API calls
     const res = await fetch(API_ENDPOINTS.search(frenchTitle), {
-      next: { revalidate: 3600 },
+      cache: 'force-cache',
       headers: { Accept: "application/json" },
     })
     if (!res.ok) return null
@@ -432,7 +432,7 @@ async function fetchFrenchVersion(
 export async function fetchSearch(query: string): Promise<NormalizedContent[]> {
   try {
     const res = await fetch(API_ENDPOINTS.search(query), {
-      next: { revalidate: 86400 },
+      cache: 'force-cache',
       headers: { Accept: "application/json" },
     })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -451,7 +451,7 @@ export async function fetchSearch(query: string): Promise<NormalizedContent[]> {
 export async function fetchInfo(id: string): Promise<NormalizedContent | null> {
   try {
     const res = await fetch(API_ENDPOINTS.info(id), {
-      next: { revalidate: 3600 },
+      cache: 'force-cache',
       headers: { Accept: "application/json" },
     })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -480,7 +480,7 @@ export async function fetchContentVersions(id: string): Promise<ContentVersions 
     const cleanTitle = content.title.replace(/\s*\[[^\]]*\]\s*/g, '').trim()
     try {
       const res = await fetch(API_ENDPOINTS.search(cleanTitle), {
-        next: { revalidate: 3600 },
+        cache: 'force-cache',
         headers: { Accept: "application/json" },
       })
       if (res.ok) {
@@ -517,7 +517,7 @@ export async function fetchHomepage(): Promise<{
 }> {
   try {
     const res = await fetch(API_ENDPOINTS.homepage, {
-      next: { revalidate: 3600 },
+      cache: 'force-cache',
       headers: { Accept: "application/json" },
     })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
